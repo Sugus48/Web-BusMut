@@ -1,0 +1,108 @@
+<a class="back-link" href="<%= isNew ? '/admin/routes' : `/admin/routes/${id}` %>"><%- include('../partials/icon', { name: 'back' }) %> เส้นทาง</a>
+<div class="page-bar"><h1><%= title %></h1></div>
+
+<form class="card form-card" method="post" action="<%= isNew ? '/admin/routes' : `/admin/routes/${id}` %>" id="route-form" novalidate>
+  <div class="field">
+    <label for="route_name">ชื่อเส้นทาง</label>
+    <input class="input <%= errors.route_name ? 'is-invalid' : '' %>" id="route_name" name="route_name" value="<%= values.route_name || '' %>" required maxlength="100"
+           <%- errors.route_name ? 'aria-invalid="true" aria-describedby="route_name-err"' : '' %>>
+    <% if (errors.route_name) { %><span class="error-text" id="route_name-err"><%= errors.route_name %></span><% } %>
+  </div>
+
+  <div class="row-between mb-2">
+    <span class="label">ลำดับจุดจอด</span>
+    <span class="small muted">ลากที่ ⠿ หรือใช้ปุ่ม ↑ ↓ เพื่อเรียงลำดับ · เลือกจุดจอดซ้ำได้</span>
+  </div>
+  <% if (errors.stops) { %><div class="alert alert-error" role="alert"><%= errors.stops %></div><% } %>
+
+  <div id="rows">
+    <% rows.forEach((r) => { %>
+      <div class="repeat-row" draggable="true">
+        <span class="handle" aria-hidden="true">⠿</span>
+        <span class="order"></span>
+        <select class="input" name="stop_id" aria-label="จุดจอด" required>
+          <option value="">— เลือกจุดจอด —</option>
+          <% stops.forEach((s) => { %><option value="<%= s.stop_id %>" <%= s.stop_id === r.stop_id ? 'selected' : '' %>><%= s.stop_name %></option><% }) %>
+        </select>
+        <span class="minutes row" style="gap:6px;flex-wrap:nowrap">
+          <input class="input" type="number" name="minutes" min="0" value="<%= r.travel_minutes %>" aria-label="เวลาเดินทางจากจุดก่อนหน้า (นาที)" style="max-width:90px">
+          <span class="small muted">นาที</span>
+        </span>
+        <span class="row" style="gap:2px;flex-wrap:nowrap">
+          <button class="btn btn-sm btn-ghost" type="button" data-move="-1" aria-label="เลื่อนขึ้น">↑</button>
+          <button class="btn btn-sm btn-ghost" type="button" data-move="1" aria-label="เลื่อนลง">↓</button>
+          <button class="btn btn-sm btn-ghost" type="button" data-remove aria-label="ลบจุดจอดนี้" style="color:var(--danger)">✕</button>
+        </span>
+      </div>
+    <% }) %>
+  </div>
+  <button class="btn btn-sm mt-2" type="button" id="add-row">+ เพิ่มจุดจอด</button>
+
+  <div class="card mt-4" style="background:var(--surface-2)">
+    <div class="row-between"><span>เวลารวมของเส้นทาง (คำนวณอัตโนมัติ)</span><b style="font-size:1.3rem"><output id="total">0</output> นาที</b></div>
+  </div>
+
+  <% if (!isNew) { %><p class="small muted mt-2">การแก้ลำดับจุดจอดมีผลกับเวลาถึงของทุกรอบในเส้นทางนี้</p><% } %>
+  <div class="btn-row end mt-4">
+    <a class="btn" href="<%= isNew ? '/admin/routes' : `/admin/routes/${id}` %>">ยกเลิก</a>
+    <button class="btn btn-primary" type="submit" data-loading="กำลังบันทึก...">บันทึก</button>
+  </div>
+</form>
+
+<script>
+  (function () {
+    const box = document.getElementById('rows');
+    const total = document.getElementById('total');
+    const rows = () => [...box.querySelectorAll('.repeat-row')];
+
+    function refresh() {
+      let sum = 0;
+      rows().forEach((row, i) => {
+        row.querySelector('.order').textContent = i + 1;
+        const m = row.querySelector('[name=minutes]');
+        m.readOnly = i === 0;               // ลำดับ 1 = 0 นาที และล็อกไว้
+        if (i === 0) m.value = 0;
+        sum += Number(m.value) || 0;
+        row.querySelector('[data-remove]').disabled = rows().length <= 2;
+      });
+      total.value = sum;
+    }
+
+    document.getElementById('add-row').addEventListener('click', () => {
+      const clone = rows()[rows().length - 1].cloneNode(true);
+      clone.querySelector('select').value = '';
+      clone.querySelector('[name=minutes]').value = '';
+      box.appendChild(clone);
+      refresh();
+      clone.querySelector('select').focus();
+    });
+
+    box.addEventListener('click', (e) => {
+      const row = e.target.closest('.repeat-row');
+      if (!row) return;
+      if (e.target.closest('[data-remove]') && rows().length > 2) row.remove();
+      const mv = e.target.closest('[data-move]');
+      if (mv) {
+        if (mv.dataset.move === '-1' && row.previousElementSibling) box.insertBefore(row, row.previousElementSibling);
+        if (mv.dataset.move === '1' && row.nextElementSibling) box.insertBefore(row.nextElementSibling, row);
+        mv.focus();
+      }
+      refresh();
+    });
+    box.addEventListener('input', refresh);
+
+    // Drag เพื่อเรียงลำดับ
+    let dragging = null;
+    box.addEventListener('dragstart', (e) => { dragging = e.target.closest('.repeat-row'); dragging.classList.add('dragging'); });
+    box.addEventListener('dragend', () => { dragging.classList.remove('dragging'); dragging = null; refresh(); });
+    box.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      const over = e.target.closest('.repeat-row');
+      if (!over || over === dragging) return;
+      const after = e.clientY > over.getBoundingClientRect().top + over.offsetHeight / 2;
+      box.insertBefore(dragging, after ? over.nextSibling : over);
+    });
+
+    refresh();
+  })();
+</script>

@@ -34,5 +34,6 @@ for (const [path, cfg] of Object.entries(resources)) router.use(path, crud(cfg))
 
 router.use('/permissions', require('./permissions'));
 router.use('/users', require('./users'));
+router.use('/routes', require('./routes'));
 
 module.exports = router;

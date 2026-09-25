@@ -1,0 +1,43 @@
+<div class="page-bar">
+  <h1>เส้นทาง</h1>
+  <% if (can(SCREEN.ROUTES, 'add')) { %><a class="btn btn-primary" href="/admin/routes/new">+ เพิ่มเส้นทาง</a><% } %>
+</div>
+
+<form class="filters" method="get" action="/admin/routes" role="search">
+  <div class="field wide">
+    <label for="q">ค้นหา</label>
+    <input class="input" id="q" name="q" value="<%= q %>" placeholder="รหัส หรือชื่อเส้นทาง">
+  </div>
+  <div class="btn-row"><button class="btn" type="submit">ค้นหา</button><a class="btn btn-ghost" href="/admin/routes">ล้าง</a></div>
+</form>
+
+<% if (!rows.length) { %>
+  <div class="card empty"><strong>ไม่พบเส้นทาง</strong></div>
+<% } else { %>
+  <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th>รหัสเส้นทาง</th><th>ชื่อเส้นทาง</th><th class="right">จำนวนจุดจอด</th><th class="right">เวลารวม</th><th class="right">จำนวนรอบ</th><th class="right">จัดการ</th></tr></thead>
+      <tbody>
+        <% rows.forEach((r) => { %>
+          <tr>
+            <td class="mono"><%= r.route_id %></td>
+            <td><a href="/admin/routes/<%= r.route_id %>"><%= r.route_name %></a></td>
+            <td class="right"><%= r.stop_count %></td>
+            <td class="right"><%= r.total_minutes %> นาที</td>
+            <td class="right"><%= r.trip_count %></td>
+            <td class="actions">
+              <a class="btn btn-sm btn-ghost" href="/admin/routes/<%= r.route_id %>">ดู</a>
+              <% if (can(SCREEN.ROUTES, 'edit')) { %><a class="btn btn-sm" href="/admin/routes/<%= r.route_id %>/edit">แก้ไข</a><% } %>
+              <% if (can(SCREEN.ROUTES, 'delete')) { %>
+                <form method="post" action="/admin/routes/<%= r.route_id %>/delete"
+                      data-confirm-title="ลบเส้นทาง <%= r.route_id %>?" data-confirm="<%= r.route_name %> และลำดับจุดจอดทั้งหมด&#10;การลบไม่สามารถย้อนกลับได้" data-confirm-ok="ลบ">
+                  <button class="btn btn-sm" style="color:var(--danger)" type="submit">ลบ</button>
+                </form>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+<% } %>
