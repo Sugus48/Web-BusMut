@@ -37,5 +37,6 @@ router.use('/users', require('./users'));
 router.use('/routes', require('./routes'));
 router.use('/trips', require('./trips'));
 router.use('/bookings', require('./bookings'));
+router.use('/reports', require('./reports'));
 
 module.exports = router;

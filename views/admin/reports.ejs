@@ -1,0 +1,106 @@
+<div class="page-bar">
+  <div>
+    <h1>รายงาน</h1>
+    <div class="muted small">รายงาน <%= id %>: <%= report.title %></div>
+  </div>
+  <a class="btn" href="/admin/reports<%= qs({ r: id, ...params, export: 'csv' }) %>">Export CSV</a>
+</div>
+
+<nav class="chips" aria-label="เลือกรายงาน">
+  <% reports.forEach((r) => { %>
+    <a class="chip" href="/admin/reports?r=<%= r.id %>" <%- r.id === id ? 'aria-current="page"' : '' %>><%= r.id %>. <%= r.title %></a>
+  <% }) %>
+</nav>
+
+<form class="filters" method="get" action="/admin/reports">
+  <input type="hidden" name="r" value="<%= id %>">
+  <% if (report.filter === 'year') { %>
+    <div class="field">
+      <label for="year">ปี (ค.ศ.)</label>
+      <input class="input" type="number" id="year" name="year" value="<%= params.year %>" min="2000" max="2100">
+    </div>
+  <% } else { %>
+    <div class="field">
+      <label for="from">วันที่เริ่มต้น</label>
+      <input class="input" type="date" id="from" name="from" value="<%= params.from %>">
+    </div>
+    <div class="field">
+      <label for="to">วันที่สิ้นสุด</label>
+      <input class="input" type="date" id="to" name="to" value="<%= params.to %>">
+    </div>
+  <% } %>
+  <div class="btn-row"><button class="btn btn-primary" type="submit">แสดงรายงาน</button></div>
+</form>
+
+<p class="muted small"><%= result.note %> · <%= report.filter === 'year' ? `ปี ${params.year}` : `${fmtDate(params.from)} – ${fmtDate(params.to)}` %></p>
+
+<div class="kpis">
+  <% result.cards.forEach(([label, value]) => { %>
+    <div class="kpi"><div class="k-label"><%= label %></div><div class="k-value"><%= Number(value).toLocaleString('th-TH') %></div></div>
+  <% }) %>
+</div>
+
+<% const hasData = result.chart.datasets.some((d) => d.data.some((v) => v > 0)); %>
+<div class="card mb-4">
+  <h2 class="card-title"><%= report.title %><% if (result.chart.caption) { %> <span class="muted small">— <%= result.chart.caption %></span><% } %></h2>
+  <% if (hasData) { %>
+    <div class="chart-box"><canvas id="chart" role="img" aria-label="กราฟ <%= report.title %> (ข้อมูลเดียวกับตารางด้านล่าง)"></canvas></div>
+  <% } else { %>
+    <div class="empty"><strong>ไม่มีข้อมูลในช่วงที่เลือก</strong>ลองเปลี่ยนปีหรือช่วงวันที่</div>
+  <% } %>
+</div>
+
+<div class="table-wrap">
+  <table class="table">
+    <caption class="sr-only">ตาราง<%= report.title %></caption>
+    <thead><tr><% result.columns.forEach((c) => { %><th class="<%= c.align || '' %>" scope="col"><%= c.label %></th><% }) %></tr></thead>
+    <tbody>
+      <% if (!result.rows.length) { %>
+        <tr><td colspan="<%= result.columns.length %>" class="center muted">ไม่มีข้อมูล</td></tr>
+      <% } %>
+      <% result.rows.forEach((r) => { %>
+        <tr <%- r._subtotal ? 'style="font-weight:700;background:var(--surface-2)"' : '' %>>
+          <% result.columns.forEach((c) => { %><td class="<%= c.align || '' %>"><%= r[c.key] ?? '' %></td><% }) %>
+        </tr>
+      <% }) %>
+    </tbody>
+    <tfoot><tr><% result.columns.forEach((c) => { %><td class="<%= c.align || '' %>"><%= result.totals[c.key] ?? '' %></td><% }) %></tr></tfoot>
+  </table>
+</div>
+
+<% if (hasData) { %>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function () {
+    if (typeof Chart === 'undefined') return;
+    const chart = <%- JSON.stringify(result.chart).replace(/</g, '\\u003c') %>;
+    // ลำดับสี categorical คงที่ (ไม่วนสี) — validated default palette
+    const SERIES = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'];
+    const css = getComputedStyle(document.documentElement);
+    Chart.defaults.font.family = css.getPropertyValue('--font');
+    Chart.defaults.color = '#52514e';
+    new Chart(document.getElementById('chart'), {
+      type: 'bar',
+      data: {
+        labels: chart.labels,
+        datasets: chart.datasets.map((d, i) => ({
+          ...d, backgroundColor: SERIES[i], borderRadius: 4, borderSkipped: 'bottom', maxBarThickness: 36,
+          borderColor: '#ffffff', borderWidth: 1,
+        })),
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: chart.datasets.length > 1, position: 'top', align: 'start', labels: { boxWidth: 12, boxHeight: 12, useBorderRadius: true, borderRadius: 3 } },
+          tooltip: { backgroundColor: '#0b0b0b', padding: 10, boxPadding: 4 },
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#52514e' } },
+          y: { beginAtZero: true, grid: { color: '#eceae6' }, border: { display: false }, ticks: { precision: 0, color: '#898781' } },
+        },
+      },
+    });
+  })();
+</script>
+<% } %>
