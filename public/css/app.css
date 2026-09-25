@@ -284,6 +284,7 @@ table.table { width: 100%; border-collapse: collapse; font-size: .9rem; }
 .form-card { max-width: 760px; }
 .matrix td, .matrix th { text-align: center; }
 .matrix td:first-child, .matrix th:first-child { text-align: left; }
+.matrix input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--primary); cursor: pointer; }
 .repeat-row { display: grid; grid-template-columns: 32px 44px 1fr 150px 44px; gap: var(--s2); align-items: center; padding: var(--s2); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); margin-bottom: var(--s2); }
 .repeat-row.dragging { opacity: .5; }
 .repeat-row .handle { cursor: grab; color: var(--text-muted); text-align: center; user-select: none; font-size: 1.2rem; }

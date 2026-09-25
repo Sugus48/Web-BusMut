@@ -1,0 +1,66 @@
+<% const editable = can(SCREEN.PERMISSIONS, 'edit'); %>
+<div class="page-bar">
+  <div>
+    <h1>สิทธิ์ตามตำแหน่ง</h1>
+    <div class="muted small">เข้าถึง = แสดงเมนู/ดูหน้านั้นได้ · เพิ่ม / แก้ไข / ลบ = แสดงปุ่มในหน้านั้น</div>
+  </div>
+</div>
+
+<form class="filters" method="get" action="/admin/permissions">
+  <div class="field wide">
+    <label for="position">ตำแหน่ง</label>
+    <select class="input" id="position" name="position" onchange="this.form.submit()">
+      <% positions.forEach((p) => { %>
+        <option value="<%= p.position_id %>" <%= position && p.position_id === position.position_id ? 'selected' : '' %>><%= p.position_name %> (<%= p.position_id %>)</option>
+      <% }) %>
+    </select>
+  </div>
+  <noscript><button class="btn" type="submit">แสดง</button></noscript>
+</form>
+
+<% if (!position) { %>
+  <div class="card empty"><strong>ยังไม่มีตำแหน่ง</strong>เพิ่มตำแหน่งก่อนกำหนดสิทธิ์</div>
+<% } else { %>
+<form method="post" action="/admin/permissions" id="matrix-form">
+  <input type="hidden" name="position" value="<%= position.position_id %>">
+  <div class="table-wrap">
+    <table class="table matrix">
+      <caption class="sr-only">สิทธิ์ของตำแหน่ง <%= position.position_name %></caption>
+      <thead>
+        <tr><th scope="col">หน้าจอ</th><th scope="col">เข้าถึง</th><th scope="col">เพิ่ม</th><th scope="col">แก้ไข</th><th scope="col">ลบ</th></tr>
+      </thead>
+      <tbody>
+        <% screens.forEach((s) => { const p = perm[s.screen_id]; %>
+          <tr data-row>
+            <th scope="row" style="background:none;color:var(--text);font-weight:500"><span class="mono muted"><%= s.screen_id %></span> <%= s.screen_name %></th>
+            <td><input class="check" type="checkbox" name="access_<%= s.screen_id %>" value="1" data-access <%= p ? 'checked' : '' %> <%= editable ? '' : 'disabled' %> aria-label="เข้าถึง <%= s.screen_name %>"></td>
+            <% [['add', 'can_add', 'เพิ่ม'], ['edit', 'can_edit', 'แก้ไข'], ['delete', 'can_delete', 'ลบ']].forEach(([k, col, label]) => { %>
+              <td><input class="check" type="checkbox" name="<%= k %>_<%= s.screen_id %>" value="1" data-flag <%= p && p[col] ? 'checked' : '' %> <%= editable && p ? '' : 'disabled' %> aria-label="<%= label %> <%= s.screen_name %>"></td>
+            <% }) %>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <% if (editable) { %>
+    <div class="btn-row end mt-4">
+      <a class="btn" href="/admin/permissions?position=<%= position.position_id %>">คืนค่าเดิม</a>
+      <button class="btn btn-primary" type="submit" data-loading="กำลังบันทึก...">บันทึกสิทธิ์</button>
+    </div>
+  <% } else { %>
+    <p class="muted small mt-2">คุณดูได้อย่างเดียว ไม่มีสิทธิ์แก้ไข</p>
+  <% } %>
+</form>
+
+<script>
+  // ปิด "เข้าถึง" → ล้างและ disable เพิ่ม/แก้ไข/ลบ
+  document.querySelectorAll('#matrix-form [data-row]').forEach((row) => {
+    const access = row.querySelector('[data-access]');
+    if (access.disabled) return;
+    const flags = row.querySelectorAll('[data-flag]');
+    const sync = () => flags.forEach((f) => { f.disabled = !access.checked; if (!access.checked) f.checked = false; });
+    access.addEventListener('change', sync);
+    sync();
+  });
+</script>
+<% } %>

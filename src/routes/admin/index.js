@@ -32,4 +32,6 @@ const resources = require('./resources');
 
 for (const [path, cfg] of Object.entries(resources)) router.use(path, crud(cfg));
 
+router.use('/permissions', require('./permissions'));
+
 module.exports = router;
