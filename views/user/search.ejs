@@ -1,0 +1,100 @@
+<div class="page-head">
+  <h1>จองรถ</h1>
+  <p class="muted mb-0">เลือกจุดขึ้น จุดลง และวันที่เดินทาง</p>
+</div>
+
+<form class="card" method="get" action="/search" id="search-form">
+  <div class="field">
+    <label for="board">จุดขึ้น</label>
+    <select class="input" id="board" name="board" required>
+      <option value="">— เลือกจุดขึ้น —</option>
+      <% stops.forEach((s) => { %>
+        <option value="<%= s.stop_id %>" <%= s.stop_id === board ? 'selected' : '' %>><%= s.stop_name %></option>
+      <% }) %>
+    </select>
+  </div>
+  <div class="field">
+    <label for="alight">จุดลง</label>
+    <select class="input" id="alight" name="alight" required aria-describedby="alight-hint">
+      <option value="">— เลือกจุดลง —</option>
+      <% stops.forEach((s) => { %>
+        <option value="<%= s.stop_id %>" <%= s.stop_id === alight ? 'selected' : '' %>><%= s.stop_name %></option>
+      <% }) %>
+    </select>
+    <span class="hint" id="alight-hint">แสดงเฉพาะจุดที่อยู่หลังจุดขึ้นในเส้นทาง</span>
+  </div>
+  <div class="field">
+    <label for="date">วันที่เดินรถ</label>
+    <input class="input" type="date" id="date" name="date" value="<%= date %>" min="<%= minDate %>" required>
+  </div>
+  <button class="btn btn-primary btn-block" type="submit"><%- include('../partials/icon', { name: 'search' }) %> ค้นหา</button>
+</form>
+
+<% if (error) { %>
+  <div class="alert alert-error mt-4" role="alert"><%= error %></div>
+<% } else if (results) { %>
+  <section class="section" aria-live="polite">
+    <h2 class="section-title">รอบรถวันที่ <%= fmtDate(date) %> (<%= results.length %> รอบ)</h2>
+    <% if (!results.length) { %>
+      <div class="card empty">
+        <strong>ไม่พบรอบรถที่ตรงกับเงื่อนไข</strong>
+        ลองเปลี่ยนวันที่หรือจุดขึ้น–ลงแล้วค้นหาอีกครั้ง
+      </div>
+    <% } %>
+    <% results.forEach((r) => {
+         const full = r.remaining_seats <= 0;
+         const q = qs({ board, alight }); %>
+      <article class="card trip-card">
+        <div class="row-between">
+          <strong><%= r.route_name %></strong>
+          <%- full ? badge('ที่นั่งเต็ม') : badge('เปิด') %>
+        </div>
+        <div class="muted small"><%= fmtDate(r.trip_date) %> · รถออก <%= fmtTime(r.depart_time) %></div>
+        <div class="times">
+          <span class="time"><%= fmtTime(r.board_at) %></span>
+          <span class="arrow" aria-hidden="true"></span>
+          <span class="time"><%= fmtTime(r.alight_at) %></span>
+        </div>
+        <div class="stop-names">
+          <span><%= stops.find((s) => s.stop_id === board).stop_name %></span>
+          <span class="right"><%= stops.find((s) => s.stop_id === alight).stop_name %></span>
+        </div>
+        <div class="meta"><span><%= r.vehicle %></span></div>
+        <div class="foot">
+          <span class="seats-left">เหลือ <b><%= r.remaining_seats %></b> / <%= r.seat_count %> ที่นั่ง</span>
+          <span class="btn-row">
+            <a class="btn btn-sm" href="/trips/<%= r.trip_id %><%= q %>">ดูรายละเอียด</a>
+            <% if (full) { %>
+              <button class="btn btn-sm btn-primary" disabled>จอง</button>
+            <% } else { %>
+              <a class="btn btn-sm btn-primary" href="/book/<%= r.trip_id %><%= q %>">จอง</a>
+            <% } %>
+          </span>
+        </div>
+      </article>
+    <% }) %>
+  </section>
+<% } %>
+
+<script>
+  // จำกัดตัวเลือกจุดลงให้อยู่หลังจุดขึ้นในเส้นทางใดเส้นทางหนึ่ง
+  (function () {
+    const sequences = <%- JSON.stringify(sequences).replace(/</g, '\\u003c') %>;
+    const board = document.getElementById('board');
+    const alight = document.getElementById('alight');
+    function update() {
+      const allowed = new Set();
+      sequences.forEach((seq) => {
+        const i = seq.indexOf(board.value);
+        if (i >= 0) seq.slice(i + 1).forEach((s) => { if (s !== board.value) allowed.add(s); });
+      });
+      [...alight.options].forEach((o) => {
+        if (!o.value) return;
+        o.disabled = !!board.value && !allowed.has(o.value);
+      });
+      if (alight.selectedOptions[0] && alight.selectedOptions[0].disabled) alight.value = '';
+    }
+    board.addEventListener('change', update);
+    update();
+  })();
+</script>

@@ -1,0 +1,56 @@
+<a class="back-link" href="/search<%= backQs %>"><%- include('../partials/icon', { name: 'back' }) %> กลับไปผลการค้นหา</a>
+
+<div class="page-head row-between">
+  <div>
+    <h1><%= trip.route_name %></h1>
+    <div class="muted"><%= fmtDate(trip.trip_date) %> · รถออก <%= fmtTime(trip.depart_time) %></div>
+  </div>
+  <%- badge(trip.status) %>
+</div>
+
+<div class="card">
+  <dl class="dl">
+    <dt>รหัสรอบ</dt><dd class="mono"><%= trip.trip_id %></dd>
+    <dt>รถ</dt><dd><%= trip.plate_no %> (<%= trip.type_name %>)</dd>
+    <dt>ที่นั่งคงเหลือ</dt><dd><%= trip.remaining_seats %> / <%= trip.seat_count %></dd>
+    <dt>เวลารวมของเส้นทาง</dt><dd><%= trip.total_minutes %> นาที</dd>
+    <% if (seg.board && seg.alight) { %>
+      <dt>ช่วงที่เลือก</dt><dd><%= seg.board.stop_name %> <%= fmtTime(seg.board.arrive_at) %> → <%= seg.alight.stop_name %> <%= fmtTime(seg.alight.arrive_at) %></dd>
+    <% } %>
+  </dl>
+</div>
+
+<section class="section">
+  <h2 class="section-title">เส้นทางและเวลาถึงแต่ละจุดจอด</h2>
+  <div class="card">
+    <ol class="route">
+      <% stops.forEach((s) => {
+           const b = seg.board && seg.board.stop_order;
+           const a = seg.alight && seg.alight.stop_order;
+           const cls = [];
+           if (b && a && s.stop_order >= b && s.stop_order <= a) cls.push('in-seg');
+           if (s.stop_order === b) cls.push('board');
+           if (s.stop_order === a) cls.push('alight', 'seg-end'); %>
+        <li class="<%= cls.join(' ') %>">
+          <span class="t"><%= fmtTime(s.arrive_at) %></span>
+          <span class="dot" aria-hidden="true"></span>
+          <span>
+            <span class="name"><%= s.stop_name %></span>
+            <% if (s.stop_order === b) { %><span class="tag">ขึ้น</span><% } %>
+            <% if (s.stop_order === a) { %><span class="tag">ลง</span><% } %>
+            <div class="sub">ลำดับ <%= s.stop_order %><%= s.stop_order > 1 ? ` · +${s.cum_minutes} นาทีจากต้นทาง` : ' · ต้นทาง' %></div>
+          </span>
+        </li>
+      <% }) %>
+    </ol>
+  </div>
+</section>
+
+<div class="section">
+  <% if (blocked) { %>
+    <div class="alert alert-warning"><%= blocked %></div>
+    <button class="btn btn-primary btn-block" disabled>จองรอบนี้</button>
+  <% } else { %>
+    <a class="btn btn-primary btn-block" href="/book/<%= trip.trip_id %><%= bookQs %>">จองรอบนี้</a>
+  <% } %>
+</div>
