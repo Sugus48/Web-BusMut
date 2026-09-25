@@ -1,0 +1,53 @@
+<div class="page-head"><h1>การจองของฉัน</h1></div>
+
+<nav class="tabs" aria-label="สถานะการจอง">
+  <% tabs.forEach((t) => { %>
+    <a href="/my?tab=<%= t.key %>" <%- t.key === tab ? 'aria-current="page"' : '' %>><%= t.label %> (<%= counts[t.key] %>)</a>
+  <% }) %>
+</nav>
+
+<% if (!items.length) { %>
+  <div class="card empty">
+    <strong>ไม่มีรายการ</strong>
+    <% if (tab === 'upcoming') { %>ยังไม่มีการจองที่กำลังจะถึง <a href="/search">ค้นหารอบรถ</a><% } %>
+  </div>
+<% } %>
+
+<% items.forEach((i) => { %>
+  <article class="card trip-card">
+    <div class="row-between">
+      <strong><%= i.route_name %></strong>
+      <%- badge(i.tab === 'cancelled' && i.status !== 'ยกเลิก' ? 'ยกเลิก' : itemStatus(i)) %>
+    </div>
+    <div class="muted small">
+      <span class="mono"><%= i.booking_id %></span> / <span class="mono"><%= i.booking_item_id %></span>
+      · <%= fmtDate(i.trip_date) %>
+    </div>
+    <div class="times">
+      <span class="time"><%= fmtTime(i.board_at) %></span>
+      <span class="arrow" aria-hidden="true"></span>
+      <span class="time"><%= fmtTime(i.alight_at) %></span>
+    </div>
+    <div class="stop-names"><span><%= i.board_stop %></span><span class="right"><%= i.alight_stop %></span></div>
+    <div class="meta">
+      <span><%= i.seats %> ที่นั่ง</span>
+      <span><%= i.plate_no %> (<%= i.type_name %>)</span>
+      <% if (i.checkin_at) { %><span>Check-in <%= fmtDateTime(i.checkin_at) %></span><% } %>
+      <% if (i.tab === 'cancelled' && i.status !== 'ยกเลิก') { %><span>รอบนี้ถูกยกเลิก</span><% } %>
+    </div>
+    <div class="foot">
+      <span></span>
+      <span class="btn-row">
+        <% if (i.canCancel) { %>
+          <form method="post" action="/my/items/<%= i.booking_item_id %>/cancel"
+                data-confirm-title="ยืนยันการยกเลิกรายการจอง <%= i.booking_item_id %>?"
+                data-confirm="ที่นั่ง <%= i.seats %> ที่จะถูกคืนให้รอบ <%= fmtTime(i.depart_time) %> <%= i.route_name %>"
+                data-confirm-ok="ยืนยันการยกเลิก">
+            <button class="btn btn-sm" style="color:var(--danger)" type="submit">ยกเลิก</button>
+          </form>
+        <% } %>
+        <a class="btn btn-sm btn-primary" href="/my/items/<%= i.booking_item_id %>"><%- include('../partials/icon', { name: 'qr' }) %> ดู QR</a>
+      </span>
+    </div>
+  </article>
+<% }) %>

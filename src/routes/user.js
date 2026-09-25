@@ -126,7 +126,57 @@ router.get('/my/items/:id', async (req, res, next) => {
     [req.params.id, req.session.user.user_id]);
   if (!item) return next();
   const qr = await QRCode.toDataURL(item.qr_code, { width: 440, margin: 1 });
-  res.page('user/item', { title: `รายการจอง ${item.booking_item_id}`, item, qr, isNew: !!req.query.new });
+  res.page('user/item', {
+    title: `รายการจอง ${item.booking_item_id}`, item, qr, isNew: !!req.query.new, canCancel: canCancel(item),
+  });
+});
+
+// ยกเลิกได้เมื่อ ยืนยัน + ยังไม่ Check-in + รอบยังไม่เริ่มเดินทาง
+const canCancel = (i) => i.status === 'ยืนยัน' && !i.checkin_at && i.trip_status === 'เปิด';
+
+// 8.4 การจองของฉัน
+const TABS = [
+  { key: 'upcoming', label: 'กำลังจะถึง' },
+  { key: 'done', label: 'เสร็จแล้ว' },
+  { key: 'cancelled', label: 'ยกเลิก' },
+];
+
+router.get('/my', async (req, res) => {
+  const tab = TABS.some((t) => t.key === req.query.tab) ? req.query.tab : 'upcoming';
+  const rows = await db.query(
+    `SELECT x.* FROM (
+       ${ITEM_SELECT.replace('SELECT', `SELECT CASE
+         WHEN t.status = 'ยกเลิก' OR tr.status = 'ยกเลิก' THEN 'cancelled'
+         WHEN t.checkin_at IS NOT NULL OR t.status = 'No Show' OR tr.status = 'เสร็จสิ้น' THEN 'done'
+         ELSE 'upcoming' END AS tab,`)}
+       WHERE t.user_id = ?
+     ) x ORDER BY x.board_at DESC`,
+    [req.session.user.user_id],
+  );
+  const counts = Object.fromEntries(TABS.map((t) => [t.key, rows.filter((r) => r.tab === t.key).length]));
+  let items = rows.filter((r) => r.tab === tab);
+  if (tab === 'upcoming') items = items.reverse(); // ใกล้ที่สุดก่อน
+  items.forEach((i) => { i.canCancel = canCancel(i); });
+  res.page('user/my', { title: 'การจองของฉัน', tabs: TABS, tab, counts, items });
+});
+
+// 8.5 ยกเลิกการจอง
+router.post('/my/items/:id/cancel', async (req, res) => {
+  const id = req.params.id;
+  const item = await db.one(`${ITEM_SELECT} WHERE t.booking_item_id = ? AND t.user_id = ?`, [id, req.session.user.user_id]);
+  if (!item || !canCancel(item)) {
+    req.flash('error', 'รายการนี้ยกเลิกไม่ได้');
+    return res.redirect('/my');
+  }
+  try {
+    await db.call('CALL sp_cancel_booking_item(?, ?)', [id, req.session.user.user_id]);
+    req.flash('success', `ยกเลิกรายการจอง ${id} แล้ว — คืน ${item.seats} ที่นั่งให้รอบ ${item.depart_time.slice(0, 5)} ${item.route_name}`);
+    res.redirect('/my?tab=cancelled');
+  } catch (err) {
+    if (!err.sqlState) throw err;
+    req.flash('error', db.errorMessage(err));
+    res.redirect('/my');
+  }
 });
 
 module.exports = router;
