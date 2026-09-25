@@ -4,6 +4,7 @@ const db = require('../db');
 const { requireLogin } = require('../middleware/auth');
 const { ITEM_SELECT, getTrip, getTripStops, segment, routeSequences } = require('../lib/queries');
 const { today, qs } = require('../lib/helpers');
+const { verifyPassword, hashPassword } = require('../lib/password');
 
 const router = express.Router();
 router.use(requireLogin);
@@ -177,6 +178,41 @@ router.post('/my/items/:id/cancel', async (req, res) => {
     req.flash('error', db.errorMessage(err));
     res.redirect('/my');
   }
+});
+
+// โปรไฟล์
+async function profileData(uid) {
+  return db.one(
+    `SELECT u.user_id, u.name, u.email, u.username, d.department_name, e.phone, p.position_name
+       FROM users u
+       JOIN departments d ON d.department_id = u.department_id
+       LEFT JOIN employees e ON e.user_id = u.user_id
+       LEFT JOIN positions p ON p.position_id = e.position_id
+      WHERE u.user_id = ?`,
+    [uid],
+  );
+}
+
+router.get('/profile', async (req, res) => {
+  const profile = await profileData(req.session.user.user_id);
+  res.page('user/profile', { title: 'โปรไฟล์', profile, errors: {} });
+});
+
+router.post('/profile/password', async (req, res) => {
+  const uid = req.session.user.user_id;
+  const { current, password, confirm } = req.body;
+  const errors = {};
+  const row = await db.one('SELECT password_hash FROM users WHERE user_id = ?', [uid]);
+  if (!(await verifyPassword(String(current || ''), row.password_hash))) errors.current = 'password ปัจจุบันไม่ถูกต้อง';
+  if (!password || String(password).length < 4) errors.password = 'password ใหม่ต้องมีอย่างน้อย 4 ตัวอักษร';
+  else if (password !== confirm) errors.confirm = 'ยืนยัน password ไม่ตรงกัน';
+  if (Object.keys(errors).length) {
+    const profile = await profileData(uid);
+    return res.status(422).page('user/profile', { title: 'โปรไฟล์', profile, errors });
+  }
+  await db.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [await hashPassword(password), uid]);
+  req.flash('success', 'เปลี่ยน password เรียบร้อยแล้ว');
+  res.redirect('/profile');
 });
 
 module.exports = router;

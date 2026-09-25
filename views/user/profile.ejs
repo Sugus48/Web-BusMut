@@ -1,0 +1,32 @@
+<div class="page-head"><h1>โปรไฟล์</h1></div>
+
+<div class="card">
+  <dl class="dl">
+    <dt>รหัสผู้ใช้งาน</dt><dd class="mono"><%= profile.user_id %></dd>
+    <dt>ชื่อ</dt><dd><%= profile.name %></dd>
+    <dt>Email</dt><dd><%= profile.email %></dd>
+    <dt>Username</dt><dd><%= profile.username %></dd>
+    <dt>แผนก</dt><dd><%= profile.department_name %></dd>
+    <% if (profile.position_name) { %>
+      <dt>ตำแหน่ง</dt><dd><%= profile.position_name %></dd>
+      <dt>เบอร์โทร</dt><dd><%= profile.phone %></dd>
+    <% } %>
+  </dl>
+</div>
+
+<form class="card" method="post" action="/profile/password" novalidate>
+  <h2 class="card-title">เปลี่ยน password</h2>
+  <% [['current', 'password ปัจจุบัน', 'current-password'], ['password', 'password ใหม่', 'new-password'], ['confirm', 'ยืนยัน password ใหม่', 'new-password']].forEach(([n, label, ac]) => { %>
+    <div class="field">
+      <label for="pw-<%= n %>"><%= label %></label>
+      <input class="input <%= errors[n] ? 'is-invalid' : '' %>" type="password" id="pw-<%= n %>" name="<%= n %>" autocomplete="<%= ac %>" required
+             <%- errors[n] ? `aria-invalid="true" aria-describedby="pw-${n}-err"` : '' %>>
+      <% if (errors[n]) { %><span class="error-text" id="pw-<%= n %>-err"><%= errors[n] %></span><% } %>
+    </div>
+  <% }) %>
+  <button class="btn btn-primary" type="submit">บันทึก password</button>
+</form>
+
+<form class="mt-4" method="post" action="/logout">
+  <button class="btn btn-block" type="submit"><%- include('../partials/icon', { name: 'logout' }) %> ออกจากระบบ</button>
+</form>
