@@ -1,0 +1,72 @@
+<div class="page-bar">
+  <div>
+    <h1>Dashboard</h1>
+    <div class="muted">ข้อมูลวันที่ <%= fmtDate(today()) %></div>
+  </div>
+</div>
+
+<div class="kpis">
+  <div class="kpi"><div class="k-label">รายการจองวันนี้</div><div class="k-value"><%= kpi.items_today %></div></div>
+  <div class="kpi"><div class="k-label">รอบรถวันนี้</div><div class="k-value"><%= kpi.trips_today %></div></div>
+  <div class="kpi"><div class="k-label">ที่นั่งที่ถูกจองวันนี้</div><div class="k-value"><%= kpi.seats_today %></div></div>
+  <div class="kpi"><div class="k-label">ผู้ใช้บริการจริง (Check-in)</div><div class="k-value" style="color:var(--success)"><%= kpi.checkin_today %></div></div>
+  <div class="kpi"><div class="k-label">No Show</div><div class="k-value" style="color:var(--warning)"><%= kpi.noshow_today %></div></div>
+  <div class="kpi"><div class="k-label">รถพร้อมใช้งาน</div><div class="k-value"><%= kpi.vehicles_ready %><span class="small muted"> / <%= kpi.vehicles_total %></span></div></div>
+</div>
+
+<section class="section">
+  <div class="row-between mb-2">
+    <h2 class="section-title mb-0">ตารางรอบวันนี้</h2>
+    <% if (hasScreen(SCREEN.TRIPS)) { %><a class="btn btn-sm btn-ghost" href="/admin/trips?date=<%= today() %>">จัดการรอบ</a><% } %>
+  </div>
+  <% if (!trips.length) { %>
+    <div class="card empty"><strong>วันนี้ยังไม่มีรอบการเดินรถ</strong></div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>เวลา</th><th>เส้นทาง</th><th>คนขับ</th><th>รถ</th><th class="right">จองแล้ว</th><th>สถานะ</th></tr></thead>
+        <tbody>
+          <% trips.forEach((t) => { %>
+            <tr>
+              <td class="nowrap"><b><%= fmtTime(t.depart_time) %></b>–<%= fmtTime(t.end_at) %></td>
+              <td><%= t.route_name %></td>
+              <td><%= t.driver_name %></td>
+              <td class="nowrap"><%= t.plate_no %> <span class="muted small">(<%= t.type_name %>)</span></td>
+              <td class="right"><%= t.booked_seats %> / <%= t.seat_count %></td>
+              <td><%- badge(t.status) %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</section>
+
+<section class="section">
+  <div class="row-between mb-2">
+    <h2 class="section-title mb-0">รายการจองล่าสุด</h2>
+    <% if (hasScreen(SCREEN.BOOKINGS)) { %><a class="btn btn-sm btn-ghost" href="/admin/bookings">ดูทั้งหมด</a><% } %>
+  </div>
+  <% if (!latest.length) { %>
+    <div class="card empty"><strong>ยังไม่มีการจอง</strong></div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>รายการจอง</th><th>ผู้จอง</th><th>วันที่จอง</th><th>รอบ</th><th>จุดขึ้น → จุดลง</th><th class="right">ที่นั่ง</th><th>สถานะ</th></tr></thead>
+        <tbody>
+          <% latest.forEach((i) => { %>
+            <tr>
+              <td class="mono"><%= i.booking_item_id %></td>
+              <td><%= i.passenger_name %></td>
+              <td class="nowrap"><%= fmtDateTime(i.booked_at) %></td>
+              <td class="nowrap"><%= fmtDate(i.trip_date) %> <%= fmtTime(i.depart_time) %></td>
+              <td><%= i.board_stop %> → <%= i.alight_stop %></td>
+              <td class="right"><%= i.seats %></td>
+              <td><%- badge(itemStatus(i)) %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</section>

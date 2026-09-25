@@ -47,6 +47,7 @@ app.use(attachUser);
 app.use(require('./routes/auth'));
 app.use(require('./routes/user'));
 app.use('/driver', require('./routes/driver'));
+app.use('/admin', require('./routes/admin'));
 
 // 404
 app.use((req, res) => {
