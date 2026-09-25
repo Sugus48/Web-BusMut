@@ -241,6 +241,18 @@ END;
 -- 3) Triggers — บังคับกฎทางธุรกิจที่ระดับฐานข้อมูล
 -- =====================================================================
 
+-- ผู้ใช้งาน: พิมพ์รหัสผ่านตรงๆ ได้ (เช่นกรอกใน SQL Developer) — แปลงเป็น SHA-256 hex ให้
+-- ค่าที่เป็น bcrypt ($2…) หรือ SHA-256 hex อยู่แล้วจะไม่ถูกแตะ
+CREATE OR REPLACE TRIGGER trg_users_password
+BEFORE INSERT OR UPDATE OF password_hash ON users
+FOR EACH ROW
+BEGIN
+  IF :NEW.password_hash NOT LIKE '$2%' AND NOT REGEXP_LIKE(:NEW.password_hash, '^[0-9a-fA-F]{64}$') THEN
+    SELECT LOWER(RAWTOHEX(STANDARD_HASH(:NEW.password_hash, 'SHA256'))) INTO :NEW.password_hash FROM dual;
+  END IF;
+END;
+/
+
 -- รอบการเดินรถ: ดึงจำนวนที่นั่งจากประเภทรถ + รถต้องพร้อมใช้งาน
 CREATE OR REPLACE TRIGGER trg_trips_bi
 BEFORE INSERT OR UPDATE OF vehicle_id ON trips
