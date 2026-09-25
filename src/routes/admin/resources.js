@@ -52,4 +52,25 @@ module.exports = {
       return n ? `ลบไม่ได้ เนื่องจากมีพนักงาน ${n} คนอยู่ในตำแหน่งนี้` : null;
     },
   },
+
+  // 10.5 หน้าจอ
+  '/screens': {
+    screen: SCREEN.PERMISSIONS,
+    title: 'หน้าจอ',
+    note: `หน้าจอ ${Object.values(SCREEN)[0]}–${Object.values(SCREEN).slice(-1)[0]} ผูกกับเมนูของระบบ (แก้ชื่อได้ แต่ลบไม่ได้)`,
+    table: 'screens', pk: 'screen_id', prefix: 'SC', pad: 2,
+    listSql: `SELECT s.screen_id, s.screen_name,
+                     (SELECT COUNT(*) FROM permissions p WHERE p.screen_id = s.screen_id) AS position_count
+                FROM screens s`,
+    searchCols: ['screen_id', 'screen_name'],
+    columns: [
+      { key: 'screen_id', label: 'รหัสหน้าจอ' },
+      { key: 'screen_name', label: 'ชื่อหน้าจอ' },
+      { key: 'position_count', label: 'จำนวนตำแหน่งที่เข้าถึงได้', align: 'right' },
+    ],
+    fields: [{ name: 'screen_name', label: 'ชื่อหน้าจอ', type: 'text', required: true, max: 100 }],
+    nameOf: (r) => r.screen_name,
+    deleteWarning: 'สิทธิ์ของหน้าจอนี้ในทุกตำแหน่งจะถูกลบด้วย',
+    beforeDelete: async (id) => (Object.values(SCREEN).includes(id) ? 'หน้าจอนี้ถูกใช้งานโดยระบบ ลบไม่ได้' : null),
+  },
 };
