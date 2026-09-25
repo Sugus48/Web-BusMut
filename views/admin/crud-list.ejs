@@ -1,0 +1,75 @@
+<div class="page-bar">
+  <div>
+    <h1><%= cfg.title %></h1>
+    <% if (cfg.note) { %><div class="muted small"><%= cfg.note %></div><% } %>
+  </div>
+  <% if (can(cfg.screen, 'add')) { %>
+    <a class="btn btn-primary" href="<%= base %>/new">+ เพิ่ม<%= cfg.title %></a>
+  <% } %>
+</div>
+
+<form class="filters" method="get" action="<%= base %>" role="search">
+  <% if (cfg.searchCols) { %>
+    <div class="field wide">
+      <label for="q">ค้นหา</label>
+      <input class="input" id="q" name="q" value="<%= q %>" placeholder="รหัส หรือชื่อ">
+    </div>
+  <% } %>
+  <% filters.forEach((f) => { %>
+    <div class="field">
+      <label for="f-<%= f.name %>"><%= f.label %></label>
+      <select class="input" id="f-<%= f.name %>" name="<%= f.name %>">
+        <option value="">ทั้งหมด</option>
+        <% f.options.forEach((o) => { %><option value="<%= o.value %>" <%= String(query[f.name]) === String(o.value) ? 'selected' : '' %>><%= o.label %></option><% }) %>
+      </select>
+    </div>
+  <% }) %>
+  <div class="btn-row">
+    <button class="btn" type="submit">ค้นหา</button>
+    <a class="btn btn-ghost" href="<%= base %>">ล้าง</a>
+  </div>
+</form>
+
+<% const showActions = can(cfg.screen, 'edit') || can(cfg.screen, 'delete') || (cfg.rowLinks || []).length; %>
+<% if (!rows.length) { %>
+  <div class="card empty"><strong>ไม่พบข้อมูล</strong><%= q ? 'ลองเปลี่ยนคำค้นหา' : '' %></div>
+<% } else { %>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <% cfg.columns.forEach((c) => { %><th class="<%= c.align || '' %>"><%= c.label %></th><% }) %>
+          <% if (showActions) { %><th class="right">จัดการ</th><% } %>
+        </tr>
+      </thead>
+      <tbody>
+        <% rows.forEach((r) => { const id = r[cfg.pk]; %>
+          <tr>
+            <% cfg.columns.forEach((c) => { %>
+              <td class="<%= c.align || '' %> <%= c.key === cfg.pk ? 'mono' : '' %>">
+                <% if (c.badge) { %><%- badge(r[c.key]) %><% } else { %><%= c.fmt ? c.fmt(r) : (r[c.key] ?? '-') %><% } %>
+              </td>
+            <% }) %>
+            <% if (showActions) { %>
+              <td class="actions">
+                <% (cfg.rowLinks || []).forEach((l) => { if (l.screen && !hasScreen(l.screen)) return; %>
+                  <a class="btn btn-sm btn-ghost" href="<%= l.href(r) %>"><%= l.label %></a>
+                <% }) %>
+                <% if (can(cfg.screen, 'edit')) { %><a class="btn btn-sm" href="<%= base %>/<%= encodeURIComponent(id) %>/edit">แก้ไข</a><% } %>
+                <% if (can(cfg.screen, 'delete')) { %>
+                  <form method="post" action="<%= base %>/<%= encodeURIComponent(id) %>/delete"
+                        data-confirm-title="ลบ<%= cfg.title %> <%= id %>?"
+                        data-confirm="<%= cfg.nameOf ? cfg.nameOf(r) : '' %><%= cfg.deleteWarning ? '\n' + cfg.deleteWarning : '' %>&#10;การลบไม่สามารถย้อนกลับได้"
+                        data-confirm-ok="ลบ">
+                    <button class="btn btn-sm" style="color:var(--danger)" type="submit">ลบ</button>
+                  </form>
+                <% } %>
+              </td>
+            <% } %>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <p class="small muted mt-2">ทั้งหมด <%= rows.length %> รายการ</p>
+<% } %>

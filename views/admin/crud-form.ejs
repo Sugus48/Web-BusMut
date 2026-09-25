@@ -1,0 +1,40 @@
+<a class="back-link" href="<%= base %>"><%- include('../partials/icon', { name: 'back' }) %> <%= cfg.title %></a>
+
+<div class="page-bar">
+  <h1><%= isNew ? 'เพิ่ม' : 'แก้ไข' %><%= cfg.title %><%= isNew ? '' : ` ${id}` %></h1>
+</div>
+
+<% if (errors._form) { %><div class="alert alert-error" role="alert"><%= errors._form %></div><% } %>
+
+<form class="card form-card" method="post" action="<%= isNew ? base : `${base}/${encodeURIComponent(id)}` %>" novalidate>
+  <div class="field">
+    <label>รหัส</label>
+    <input class="input mono" value="<%= isNew ? 'สร้างอัตโนมัติ' : id %>" readonly>
+  </div>
+  <% fields.forEach((f) => {
+       const v = values[f.name] ?? '';
+       const err = errors[f.name];
+       const aria = err ? `aria-invalid="true" aria-describedby="${f.name}-err"` : ''; %>
+    <div class="field">
+      <label for="<%= f.name %>"><%= f.label %><%= f.required ? '' : ' (ไม่บังคับ)' %></label>
+      <% if (f.type === 'select') { %>
+        <select class="input <%= err ? 'is-invalid' : '' %>" id="<%= f.name %>" name="<%= f.name %>" <%= f.required ? 'required' : '' %> <%- aria %>>
+          <option value="">— เลือก<%= f.label %> —</option>
+          <% f.options.forEach((o) => { %><option value="<%= o.value %>" <%= String(v) === String(o.value) ? 'selected' : '' %>><%= o.label %></option><% }) %>
+        </select>
+      <% } else if (f.type === 'textarea') { %>
+        <textarea class="input <%= err ? 'is-invalid' : '' %>" id="<%= f.name %>" name="<%= f.name %>" <%= f.max ? `maxlength=${f.max}` : '' %> <%- aria %>><%= v %></textarea>
+      <% } else { %>
+        <input class="input <%= err ? 'is-invalid' : '' %>" id="<%= f.name %>" name="<%= f.name %>" value="<%= v %>"
+               type="<%= f.type === 'number' ? 'number' : 'text' %>" <%= f.min !== undefined ? `min=${f.min}` : '' %>
+               <%= f.max ? `maxlength=${f.max}` : '' %> <%= f.required ? 'required' : '' %> <%- aria %>>
+      <% } %>
+      <% if (f.hint) { %><span class="hint"><%= f.hint %></span><% } %>
+      <% if (err) { %><span class="error-text" id="<%= f.name %>-err"><%= err %></span><% } %>
+    </div>
+  <% }) %>
+  <div class="btn-row end">
+    <a class="btn" href="<%= base %>">ยกเลิก</a>
+    <button class="btn btn-primary" type="submit" data-loading="กำลังบันทึก...">บันทึก</button>
+  </div>
+</form>

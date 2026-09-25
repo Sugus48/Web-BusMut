@@ -26,4 +26,10 @@ router.get('/', requireAnyAdmin, async (req, res) => {
   res.page('admin/dashboard', { title: 'Dashboard', kpi, trips, latest });
 });
 
+// ข้อมูลหลัก (CRUD มาตรฐาน)
+const crud = require('./crud');
+const resources = require('./resources');
+
+for (const [path, cfg] of Object.entries(resources)) router.use(path, crud(cfg));
+
 module.exports = router;
