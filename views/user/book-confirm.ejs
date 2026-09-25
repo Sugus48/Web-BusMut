@@ -1,0 +1,27 @@
+<div class="page-head">
+  <div class="muted small">ขั้นตอน 2 / 2</div>
+  <h1>ยืนยันการจอง</h1>
+</div>
+
+<div class="card">
+  <h2 class="card-title">รายละเอียดการจอง</h2>
+  <dl class="summary">
+    <dt>เส้นทาง</dt><dd><%= trip.route_name %></dd>
+    <dt>วันที่เดินรถ</dt><dd><%= fmtDate(trip.trip_date) %></dd>
+    <dt>เวลาออก</dt><dd><%= fmtTime(trip.depart_time) %></dd>
+    <dt>จุดขึ้น</dt><dd><%= seg.board.stop_name %> (ถึง <%= fmtTime(seg.board.arrive_at) %>)</dd>
+    <dt>จุดลง</dt><dd><%= seg.alight.stop_name %> (ถึง <%= fmtTime(seg.alight.arrive_at) %>)</dd>
+    <dt>รถ</dt><dd><%= trip.plate_no %> (<%= trip.type_name %>)</dd>
+    <dt>จำนวนที่นั่ง</dt><dd><%= seats %></dd>
+  </dl>
+</div>
+
+<form class="mt-4" method="post" action="/book/<%= trip.trip_id %>">
+  <input type="hidden" name="board" value="<%= board %>">
+  <input type="hidden" name="alight" value="<%= alight %>">
+  <input type="hidden" name="seats" value="<%= seats %>">
+  <div class="btn-row">
+    <a class="btn grow" href="/book/<%= trip.trip_id %><%= qs({ board, alight, seats }) %>">ย้อนกลับ</a>
+    <button class="btn btn-primary grow" type="submit" data-loading="กำลังจอง...">ยืนยันการจอง</button>
+  </div>
+</form>

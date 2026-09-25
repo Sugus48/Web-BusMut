@@ -1,0 +1,56 @@
+<% const status = itemStatus(item); const cancelled = item.status === 'ยกเลิก'; %>
+<% if (isNew) { %>
+  <div class="success-head">
+    <div class="check-circle"><%- include('../partials/icon', { name: 'check' }) %></div>
+    <h1 class="mb-0">จองสำเร็จ</h1>
+    <p class="muted">แสดง QR Code นี้ให้คนขับสแกนเมื่อขึ้นรถ</p>
+  </div>
+<% } else { %>
+  <a class="back-link no-print" href="/my"><%- include('../partials/icon', { name: 'back' }) %> การจองของฉัน</a>
+  <div class="page-head row-between">
+    <h1 class="mb-0">QR Code การจอง</h1>
+    <%- badge(status) %>
+  </div>
+<% } %>
+
+<div class="card center">
+  <div class="qr-box <%= cancelled ? 'cancelled' : '' %>">
+    <img src="<%= qr %>" alt="QR Code รหัส <%= item.qr_code %>" width="220" height="220">
+  </div>
+  <div class="qr-code-text">รหัส QR: <%= item.qr_code %></div>
+  <div class="muted small">รหัสการจอง <span class="mono"><%= item.booking_id %></span> · รายการจอง <span class="mono"><%= item.booking_item_id %></span></div>
+</div>
+
+<div class="card">
+  <dl class="dl">
+    <dt>สถานะการจอง</dt><dd><%- badge(status) %></dd>
+    <dt>เส้นทาง</dt><dd><%= item.route_name %></dd>
+    <dt>วันที่เดินรถ</dt><dd><%= fmtDate(item.trip_date) %></dd>
+    <dt>เวลาออก</dt><dd><%= fmtTime(item.depart_time) %></dd>
+    <dt>จุดขึ้น</dt><dd><%= item.board_stop %> (ถึง <%= fmtTime(item.board_at) %>)</dd>
+    <dt>จุดลง</dt><dd><%= item.alight_stop %> (ถึง <%= fmtTime(item.alight_at) %>)</dd>
+    <dt>รถ</dt><dd><%= item.plate_no %> (<%= item.type_name %>)</dd>
+    <dt>จำนวนที่นั่ง</dt><dd><%= item.seats %></dd>
+    <dt>วันที่และเวลาจอง</dt><dd><%= fmtDateTime(item.booked_at) %></dd>
+    <% if (item.checkin_at) { %><dt>Check-in</dt><dd><%= fmtDateTime(item.checkin_at) %></dd><% } %>
+  </dl>
+</div>
+
+<div class="stack mt-4 no-print">
+  <% if (!cancelled) { %>
+    <div class="btn-row">
+      <a class="btn grow" href="<%= qr %>" download="<%= item.booking_item_id %>-QR.png">บันทึก QR</a>
+      <button class="btn grow" type="button" onclick="window.print()">พิมพ์ QR</button>
+    </div>
+  <% } %>
+  <a class="btn btn-primary btn-block" href="/my">การจองของฉัน</a>
+  <a class="btn btn-ghost btn-block" href="/">กลับหน้าหลัก</a>
+  <% if (locals.canCancel) { %>
+    <form method="post" action="/my/items/<%= item.booking_item_id %>/cancel"
+          data-confirm-title="ยืนยันการยกเลิกรายการจอง <%= item.booking_item_id %>?"
+          data-confirm="ที่นั่ง <%= item.seats %> ที่จะถูกคืนให้รอบ <%= fmtTime(item.depart_time) %> <%= item.route_name %>"
+          data-confirm-ok="ยืนยันการยกเลิก">
+      <button class="btn btn-block" style="color:var(--danger)" type="submit">ยกเลิกการจอง</button>
+    </form>
+  <% } %>
+</div>

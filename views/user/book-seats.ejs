@@ -1,0 +1,53 @@
+<a class="back-link" href="/trips/<%= trip.trip_id %><%= qs({ board, alight }) %>"><%- include('../partials/icon', { name: 'back' }) %> รายละเอียดรอบ</a>
+
+<div class="page-head">
+  <div class="muted small">ขั้นตอน 1 / 2</div>
+  <h1>เลือกจำนวนที่นั่ง</h1>
+</div>
+
+<div class="card trip-card">
+  <strong><%= trip.route_name %></strong>
+  <div class="muted small"><%= fmtDate(trip.trip_date) %> · รถออก <%= fmtTime(trip.depart_time) %> · <%= trip.plate_no %> (<%= trip.type_name %>)</div>
+  <div class="times">
+    <span class="time"><%= fmtTime(seg.board.arrive_at) %></span>
+    <span class="arrow" aria-hidden="true"></span>
+    <span class="time"><%= fmtTime(seg.alight.arrive_at) %></span>
+  </div>
+  <div class="stop-names"><span><%= seg.board.stop_name %></span><span class="right"><%= seg.alight.stop_name %></span></div>
+</div>
+
+<form class="card mt-4" method="get" action="/book/<%= trip.trip_id %>/confirm">
+  <input type="hidden" name="board" value="<%= board %>">
+  <input type="hidden" name="alight" value="<%= alight %>">
+  <label class="label" for="seats">จำนวนที่นั่ง</label>
+  <div class="stepper">
+    <button class="btn" type="button" data-step="-1" aria-label="ลดจำนวนที่นั่ง">−</button>
+    <input class="input center" style="max-width:96px;font-size:1.8rem;font-weight:700" type="number" id="seats" name="seats"
+           value="<%= seats %>" min="1" max="<%= maxSeats %>" required aria-describedby="seats-hint">
+    <button class="btn" type="button" data-step="1" aria-label="เพิ่มจำนวนที่นั่ง">+</button>
+  </div>
+  <p class="center muted small" id="seats-hint">
+    ที่นั่งคงเหลือ <%= trip.remaining_seats %> ที่ · เลือกได้สูงสุด <%= maxSeats %> ที่นั่ง (ไม่เกิน 4 ที่นั่งต่อรายการจอง)
+  </p>
+  <button class="btn btn-primary btn-block" type="submit">ถัดไป</button>
+</form>
+
+<script>
+  (function () {
+    const input = document.getElementById('seats');
+    const max = Number(input.max);
+    document.querySelectorAll('[data-step]').forEach((b) => {
+      b.addEventListener('click', () => {
+        input.value = Math.min(max, Math.max(1, Number(input.value || 1) + Number(b.dataset.step)));
+        sync();
+      });
+    });
+    function sync() {
+      const v = Number(input.value);
+      document.querySelector('[data-step="-1"]').disabled = v <= 1;
+      document.querySelector('[data-step="1"]').disabled = v >= max;
+    }
+    input.addEventListener('input', sync);
+    sync();
+  })();
+</script>
