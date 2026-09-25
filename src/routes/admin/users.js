@@ -26,7 +26,7 @@ router.get('/', async (req, res) => {
   if (type === 'user') where.push('e.user_id IS NULL');
   const rows = await db.query(
     `SELECT u.user_id, u.name, u.email, u.username, d.department_name, e.phone, p.position_name,
-            e.user_id IS NOT NULL AS is_employee
+            CASE WHEN e.user_id IS NOT NULL THEN 1 ELSE 0 END AS is_employee
        FROM users u
        JOIN departments d ON d.department_id = u.department_id
        LEFT JOIN employees e ON e.user_id = u.user_id
@@ -72,18 +72,17 @@ function validate(body, isNew, lk) {
 
 function duplicateError(err, e) {
   if (err.errno !== 1062) return false;
-  if (/email/.test(err.sqlMessage)) e.email = 'email นี้ถูกใช้แล้ว';
+  if (/email/i.test(err.sqlMessage)) e.email = 'email นี้ถูกใช้แล้ว';
   else e.username = 'username นี้ถูกใช้แล้ว';
   return true;
 }
 
 async function saveEmployee(conn, id, v) {
   if (v.is_employee) {
-    await db.query(
-      `INSERT INTO employees (user_id, phone, position_id) VALUES (?, ?, ?)
-       ON DUPLICATE KEY UPDATE phone = VALUES(phone), position_id = VALUES(position_id)`,
-      [id, v.phone, v.position_id], conn,
-    );
+    const data = { phone: v.phone, position_id: v.position_id };
+    const exists = await db.one('SELECT 1 AS ok FROM employees WHERE user_id = ?', [id], conn);
+    if (exists) await db.update('employees', data, { user_id: id }, conn);
+    else await db.insert('employees', { user_id: id, ...data }, conn);
   } else {
     await db.query('DELETE FROM employees WHERE user_id = ?', [id], conn);
   }
@@ -97,10 +96,10 @@ router.post('/', requirePerm(SCREEN.USERS, 'add'), async (req, res) => {
     try {
       const id = await db.tx(async (conn) => {
         const newId = await db.nextId('users', 'user_id', 'U', 3, conn);
-        await db.query('INSERT INTO users SET ?', [{
+        await db.insert('users', {
           user_id: newId, name: v.name, email: v.email, username: v.username,
           password_hash: await hashPassword(v.password), department_id: v.department_id,
-        }], conn);
+        }, conn);
         await saveEmployee(conn, newId, v);
         return newId;
       });
@@ -115,7 +114,7 @@ router.post('/', requirePerm(SCREEN.USERS, 'add'), async (req, res) => {
 
 router.get('/:id/edit', requirePerm(SCREEN.USERS, 'edit'), async (req, res, next) => {
   const row = await db.one(
-    `SELECT u.*, e.phone, e.position_id, e.user_id IS NOT NULL AS is_employee
+    `SELECT u.*, e.phone, e.position_id, CASE WHEN e.user_id IS NOT NULL THEN 1 ELSE 0 END AS is_employee
        FROM users u LEFT JOIN employees e ON e.user_id = u.user_id WHERE u.user_id = ?`,
     [req.params.id],
   );
@@ -133,7 +132,7 @@ router.post('/:id', requirePerm(SCREEN.USERS, 'edit'), async (req, res, next) =>
       await db.tx(async (conn) => {
         const data = { name: v.name, email: v.email, username: v.username, department_id: v.department_id };
         if (v.password) data.password_hash = await hashPassword(v.password);
-        await db.query('UPDATE users SET ? WHERE user_id = ?', [data, id], conn);
+        await db.update('users', data, { user_id: id }, conn);
         await saveEmployee(conn, id, v);
       });
       req.flash('success', `บันทึกผู้ใช้งาน ${id} เรียบร้อยแล้ว`);
@@ -150,7 +149,8 @@ router.post('/:id/delete', requirePerm(SCREEN.USERS, 'delete'), async (req, res)
   const id = req.params.id;
   const usage = await db.one(
     `SELECT (SELECT COUNT(*) FROM bookings WHERE user_id = ?) AS bookings,
-            (SELECT COUNT(*) FROM trips WHERE driver_id = ?) AS trips`,
+            (SELECT COUNT(*) FROM trips WHERE driver_id = ?) AS trips
+       FROM DUAL`,
     [id, id],
   );
   if (id === res.locals.user.user_id) req.flash('error', 'ไม่สามารถลบบัญชีของตัวเองได้');

@@ -45,10 +45,10 @@ router.post('/', requirePerm(SCREEN.PERMISSIONS, 'edit'), async (req, res) => {
       const flags = { can_add: on(`add_${s}`) ? 1 : 0, can_edit: on(`edit_${s}`) ? 1 : 0, can_delete: on(`delete_${s}`) ? 1 : 0 };
       if (on(`access_${s}`)) {
         if (existing[s]) {
-          await db.query('UPDATE permissions SET ? WHERE permission_id = ?', [flags, existing[s]], conn);
+          await db.update('permissions', flags, { permission_id: existing[s] }, conn);
         } else {
           const id = `PR${String(n++).padStart(3, '0')}`;
-          await db.query('INSERT INTO permissions SET ?', [{ permission_id: id, position_id: positionId, screen_id: s, ...flags }], conn);
+          await db.insert('permissions', { permission_id: id, position_id: positionId, screen_id: s, ...flags }, conn);
         }
       } else if (existing[s]) {
         await db.query('DELETE FROM permissions WHERE permission_id = ?', [existing[s]], conn);

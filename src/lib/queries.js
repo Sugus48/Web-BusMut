@@ -37,7 +37,7 @@ const getTrip = (tripId) => db.one(`${TRIP_SELECT} WHERE tr.trip_id = ?`, [tripI
 // เวลาถึงแต่ละจุดจอดของรอบ (Route diagram)
 const getTripStops = (tripId) => db.query(
   `SELECT stop_order, stop_id, stop_name, cum_minutes, arrive_at,
-          arrive_at >= NOW() + INTERVAL 20 MINUTE AS bookable
+          CASE WHEN arrive_at >= NOW() + INTERVAL 20 MINUTE THEN 1 ELSE 0 END AS bookable
      FROM v_trip_stop_times WHERE trip_id = ? ORDER BY stop_order`,
   [tripId],
 );

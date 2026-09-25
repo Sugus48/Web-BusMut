@@ -91,7 +91,7 @@ function crud(cfg) {
     if (!Object.keys(errors).length) {
       try {
         const id = await db.nextId(cfg.table, cfg.pk, cfg.prefix, cfg.pad);
-        await db.query(`INSERT INTO ${cfg.table} SET ?`, [{ [cfg.pk]: id, ...values }]);
+        await db.insert(cfg.table, { [cfg.pk]: id, ...values });
         if (cfg.afterSave) await cfg.afterSave();
         req.flash('success', `เพิ่ม${cfg.title} ${id} เรียบร้อยแล้ว`);
         return res.redirect(req.baseUrl);
@@ -114,7 +114,7 @@ function crud(cfg) {
     const { values, errors } = await validate(req.body);
     if (!Object.keys(errors).length) {
       try {
-        await db.query(`UPDATE ${cfg.table} SET ? WHERE ${cfg.pk} = ?`, [values, req.params.id]);
+        await db.update(cfg.table, values, { [cfg.pk]: req.params.id });
         if (cfg.afterSave) await cfg.afterSave();
         req.flash('success', `บันทึก${cfg.title} ${req.params.id} เรียบร้อยแล้ว`);
         return res.redirect(req.baseUrl);

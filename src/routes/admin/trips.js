@@ -68,7 +68,8 @@ async function findConflicts(v, excludeId) {
         AND (tr.vehicle_id = ? OR tr.driver_id = ?)
         AND TIMESTAMP(tr.trip_date, tr.depart_time) < TIMESTAMP(?, ?) + INTERVAL ? MINUTE
         AND TIMESTAMP(?, ?) < TIMESTAMP(tr.trip_date, tr.depart_time) + INTERVAL rt.total_minutes MINUTE`,
-    [v.trip_date, excludeId || '', v.vehicle_id, v.driver_id, v.trip_date, v.depart_time, minutes, v.trip_date, v.depart_time],
+    // Oracle ถือ '' = NULL จึงใช้ '-' แทน
+    [v.trip_date, excludeId || '-', v.vehicle_id, v.driver_id, v.trip_date, v.depart_time, minutes, v.trip_date, v.depart_time],
   );
 }
 
@@ -125,7 +126,7 @@ router.post('/', requirePerm(SCREEN.TRIPS, 'add'), async (req, res) => {
   if (!Object.keys(e).length) {
     try {
       const id = await db.nextId('trips', 'trip_id', 'TR', 3);
-      await db.query('INSERT INTO trips SET ?', [{ trip_id: id, ...v, depart_time: `${v.depart_time}:00` }]);
+      await db.insert('trips', { trip_id: id, ...v, depart_time: `${v.depart_time}:00` });
       req.flash('success', `เพิ่มรอบ ${id} (${fmtDate(v.trip_date)} ${v.depart_time}) เรียบร้อยแล้ว`);
       return res.redirect(`/admin/trips?date=${v.trip_date}`);
     } catch (err) {
@@ -148,7 +149,7 @@ router.post('/:id', requirePerm(SCREEN.TRIPS, 'edit'), async (req, res, next) =>
   const { v, e } = await validate(req.body, { isNew: false, trip });
   if (!Object.keys(e).length) {
     try {
-      await db.query('UPDATE trips SET ? WHERE trip_id = ?', [{ ...v, depart_time: `${v.depart_time}:00` }, trip.trip_id]);
+      await db.update('trips', { ...v, depart_time: `${v.depart_time}:00` }, { trip_id: trip.trip_id });
       req.flash('success', `บันทึกรอบ ${trip.trip_id} เรียบร้อยแล้ว`);
       return res.redirect(`/admin/trips?date=${v.trip_date}`);
     } catch (err) {

@@ -58,9 +58,9 @@ const REPORTS = {
                 COUNT(DISTINCT bi.booking_id)                                  AS bookings,
                 COUNT(*)                                                       AS booking_items,
                 SUM(CASE WHEN bi.status <> 'ยกเลิก' THEN bi.seats ELSE 0 END)  AS booked_seats,
-                SUM(bi.status = 'ยกเลิก')                                       AS cancelled,
-                SUM(bi.checkin_at IS NOT NULL)                                 AS checked_in,
-                SUM(bi.status = 'No Show')                                     AS no_show
+                SUM(CASE WHEN bi.status = 'ยกเลิก' THEN 1 ELSE 0 END)          AS cancelled,
+                SUM(CASE WHEN bi.checkin_at IS NOT NULL THEN 1 ELSE 0 END)    AS checked_in,
+                SUM(CASE WHEN bi.status = 'No Show' THEN 1 ELSE 0 END)        AS no_show
            FROM booking_items bi JOIN trips t ON t.trip_id = bi.trip_id
           WHERE YEAR(t.trip_date) = ?
           GROUP BY MONTH(t.trip_date)`,
@@ -95,9 +95,9 @@ const REPORTS = {
       const rows = await db.query(
         `SELECT u.user_id, u.name,
                 COUNT(*)                       AS total_items,
-                SUM(bi.checkin_at IS NOT NULL) AS boarded,
-                SUM(bi.status = 'ยกเลิก')      AS cancelled,
-                SUM(bi.status = 'No Show')     AS no_show
+                SUM(CASE WHEN bi.checkin_at IS NOT NULL THEN 1 ELSE 0 END) AS boarded,
+                SUM(CASE WHEN bi.status = 'ยกเลิก' THEN 1 ELSE 0 END)       AS cancelled,
+                SUM(CASE WHEN bi.status = 'No Show' THEN 1 ELSE 0 END)     AS no_show
            FROM booking_items bi
            JOIN bookings b ON b.booking_id = bi.booking_id
            JOIN users u    ON u.user_id = b.user_id
@@ -206,8 +206,8 @@ const REPORTS = {
       const rows = await db.query(
         `SELECT u.user_id, u.name,
                 COUNT(*)                         AS total_trips,
-                SUM(t.depart_time <  '17:00:00') AS before_1700,
-                SUM(t.depart_time >= '17:00:00') AS after_1700
+                SUM(CASE WHEN t.depart_time <  '17:00:00' THEN 1 ELSE 0 END) AS before_1700,
+                SUM(CASE WHEN t.depart_time >= '17:00:00' THEN 1 ELSE 0 END) AS after_1700
            FROM trips t JOIN users u ON u.user_id = t.driver_id
           WHERE t.trip_date BETWEEN ? AND ? AND t.status <> 'ยกเลิก'
           GROUP BY u.user_id, u.name

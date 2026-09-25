@@ -20,7 +20,8 @@ router.get('/', requireAnyAdmin, async (req, res) => {
       (SELECT COUNT(*) FROM booking_items bi JOIN trips t ON t.trip_id = bi.trip_id
         WHERE t.trip_date = CURDATE() AND bi.status = 'No Show')                               AS noshow_today,
       (SELECT COUNT(*) FROM vehicles WHERE status = 'พร้อมใช้งาน')                               AS vehicles_ready,
-      (SELECT COUNT(*) FROM vehicles)                                                           AS vehicles_total`);
+      (SELECT COUNT(*) FROM vehicles)                                                           AS vehicles_total
+    FROM DUAL`);
   const trips = await db.query(`${TRIP_SELECT} WHERE tr.trip_date = CURDATE() ORDER BY tr.depart_time`);
   const latest = await db.query(`${ITEM_SELECT} ORDER BY b.booked_at DESC, t.booking_item_id DESC LIMIT 8`);
   res.page('admin/dashboard', { title: 'Dashboard', kpi, trips, latest });

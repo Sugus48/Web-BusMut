@@ -42,7 +42,7 @@ router.get('/search', async (req, res) => {
     if (!board || !alight) error = 'กรุณาเลือกจุดขึ้นและจุดลง';
     else if (board === alight) error = 'จุดขึ้นและจุดลงต้องไม่ใช่จุดเดียวกัน';
     else if (date < today()) error = 'ไม่สามารถค้นหารอบของวันที่ผ่านมาแล้ว';
-    else [results] = await db.call('CALL sp_search_trips(?, ?, ?)', [date, board, alight]);
+    else results = await db.proc.searchTrips(date, board, alight);
   }
   res.page('user/search', {
     title: 'ค้นหารอบรถ', stops, sequences, board, alight, date, minDate: today(), results, error,
@@ -106,18 +106,15 @@ router.get('/book/:id/confirm', async (req, res, next) => {
 router.post('/book/:id', async (req, res) => {
   const { board, alight } = req.body;
   const seats = Number(req.body.seats);
-  const conn = await db.pool.getConnection();
   try {
-    await conn.query('CALL sp_create_booking(?, ?, ?, ?, ?, @b, @i, @qr)',
-      [req.session.user.user_id, req.params.id, board, alight, seats]);
-    const [[out]] = await conn.query('SELECT @i AS item_id');
+    const out = await db.proc.createBooking({
+      user: req.session.user.user_id, trip: req.params.id, board, alight, seats,
+    });
     res.redirect(`/my/items/${out.item_id}?new=1`);
   } catch (err) {
     if (!err.sqlState) throw err;
     req.flash('error', db.errorMessage(err));
     res.redirect(`/book/${encodeURIComponent(req.params.id)}${qs({ board, alight })}`);
-  } finally {
-    conn.release();
   }
 });
 
@@ -170,7 +167,7 @@ router.post('/my/items/:id/cancel', async (req, res) => {
     return res.redirect('/my');
   }
   try {
-    await db.call('CALL sp_cancel_booking_item(?, ?)', [id, req.session.user.user_id]);
+    await db.proc.cancelItem(id, req.session.user.user_id);
     req.flash('success', `ยกเลิกรายการจอง ${id} แล้ว — คืน ${item.seats} ที่นั่งให้รอบ ${item.depart_time.slice(0, 5)} ${item.route_name}`);
     res.redirect('/my?tab=cancelled');
   } catch (err) {

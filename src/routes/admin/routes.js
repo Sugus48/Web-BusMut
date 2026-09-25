@@ -73,11 +73,9 @@ async function validate(req, routeId) {
 
 async function saveStops(conn, routeId, rows) {
   await db.query('DELETE FROM route_stops WHERE route_id = ?', [routeId], conn);
-  await db.query(
-    'INSERT INTO route_stops (route_id, stop_order, stop_id, travel_minutes) VALUES ?',
-    [rows.map((r, i) => [routeId, i + 1, r.stop_id, r.travel_minutes])],
-    conn,
-  );
+  for (const [i, r] of rows.entries()) {
+    await db.insert('route_stops', { route_id: routeId, stop_order: i + 1, stop_id: r.stop_id, travel_minutes: r.travel_minutes }, conn);
+  }
 }
 
 router.post('/', requirePerm(SCREEN.ROUTES, 'add'), async (req, res) => {
@@ -98,7 +96,8 @@ router.get('/:id', async (req, res, next) => {
   if (!route) return next();
   const stops = await db.query('SELECT * FROM v_route_stop_times WHERE route_id = ? ORDER BY stop_order', [route.route_id]);
   const trips = await db.one(
-    `SELECT COUNT(*) AS total, SUM(status = 'เปิด') AS open FROM trips WHERE route_id = ?`, [route.route_id],
+    `SELECT COUNT(*) AS total, SUM(CASE WHEN status = 'เปิด' THEN 1 ELSE 0 END) AS open_count
+       FROM trips WHERE route_id = ?`, [route.route_id],
   );
   res.page('admin/route-detail', { title: `เส้นทาง ${route.route_name}`, route, stops, trips });
 });

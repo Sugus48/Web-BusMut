@@ -5,12 +5,12 @@ const { SCREEN } = require('../../middleware/auth');
 const count = async (sql, id) => (await db.one(sql, [id])).n;
 
 // จำนวนที่นั่งของรอบ (Derived จากประเภทรถ) — อัปเดตรอบที่ยังเปิดเมื่อประเภทรถ/รถเปลี่ยน
+const SEATS_OF_TRIP = `(SELECT vt.seat_count FROM vehicles v
+                          JOIN vehicle_types vt ON vt.vehicle_type_id = v.vehicle_type_id
+                         WHERE v.vehicle_id = trips.vehicle_id)`;
 const syncTripSeats = () => db.query(
-  `UPDATE trips t
-     JOIN vehicles v       ON v.vehicle_id = t.vehicle_id
-     JOIN vehicle_types vt ON vt.vehicle_type_id = v.vehicle_type_id
-      SET t.seat_count = vt.seat_count
-    WHERE t.status = 'เปิด' AND t.seat_count <> vt.seat_count`,
+  `UPDATE trips SET seat_count = ${SEATS_OF_TRIP}
+    WHERE status = 'เปิด' AND seat_count <> ${SEATS_OF_TRIP}`,
 );
 
 const VEHICLE_STATUS = ['พร้อมใช้งาน', 'ซ่อมบำรุง', 'ไม่พร้อมใช้งาน'].map((s) => ({ value: s, label: s }));
@@ -175,7 +175,8 @@ module.exports = {
     beforeDelete: async (id) => {
       const u = await db.one(
         `SELECT (SELECT COUNT(DISTINCT route_id) FROM route_stops WHERE stop_id = ?) AS routes,
-                (SELECT COUNT(*) FROM booking_items WHERE board_stop_id = ? OR alight_stop_id = ?) AS items`,
+                (SELECT COUNT(*) FROM booking_items WHERE board_stop_id = ? OR alight_stop_id = ?) AS items
+           FROM DUAL`,
         [id, id, id],
       );
       const why = [];

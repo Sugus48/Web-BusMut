@@ -82,7 +82,7 @@ router.get('/trips/:id', async (req, res, next) => {
 // เริ่มการเดินทาง
 router.post('/trips/:id/start', async (req, res) => {
   try {
-    await db.call('CALL sp_start_trip(?, ?)', [req.params.id, req.session.user.user_id]);
+    await db.proc.startTrip(req.params.id, req.session.user.user_id);
     req.flash('success', 'เริ่มการเดินทางแล้ว — สแกน QR ผู้โดยสารได้เลย');
   } catch (err) {
     if (!err.sqlState) throw err;
@@ -111,7 +111,7 @@ router.post('/trips/:id/checkin', async (req, res, next) => {
     req.session.scanResult = { ok: false, msg: 'กรุณาสแกนหรือกรอกรหัส QR' };
   } else {
     try {
-      const [[r]] = await db.call('CALL sp_checkin(?, ?)', [qr, trip.trip_id]);
+      const r = await db.proc.checkin(qr, trip.trip_id);
       req.session.scanResult = {
         ok: true,
         msg: `Check-in สำเร็จ — ${r.passenger_name} ${r.seats} ที่นั่ง (ลงที่ ${r.alight_stop})`,
@@ -149,7 +149,7 @@ router.post('/trips/:id/close', async (req, res, next) => {
   if (trip === null) return next();
   if (!trip) return;
   try {
-    const [[summary]] = await db.call('CALL sp_close_trip(?)', [trip.trip_id]);
+    const { summary } = await db.proc.closeTrip(trip.trip_id);
     req.flash('success', `ปิดงานแล้ว — ผู้ใช้บริการจริง ${summary.actual_passengers} คน, No Show ${summary.no_show_items || 0} รายการ`);
   } catch (err) {
     if (!err.sqlState) throw err;

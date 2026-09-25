@@ -52,7 +52,7 @@ router.get('/:id', async (req, res, next) => {
 router.post('/items/:item/cancel', requirePerm(SCREEN.BOOKINGS, 'edit'), async (req, res) => {
   const item = await db.one('SELECT booking_id FROM booking_items WHERE booking_item_id = ?', [req.params.item]);
   try {
-    await db.call('CALL sp_cancel_booking_item(?, NULL)', [req.params.item]);
+    await db.proc.cancelItem(req.params.item, null);
     req.flash('success', `ยกเลิกรายการจอง ${req.params.item} แล้ว — คืนที่นั่งให้รอบเรียบร้อย`);
   } catch (err) {
     if (!err.sqlState) throw err;
