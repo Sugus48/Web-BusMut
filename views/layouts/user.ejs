@@ -1,0 +1,35 @@
+<%
+const tabs = [
+  { href: '/', label: 'หน้าหลัก', icon: 'home', match: (p) => p === '/' },
+  { href: '/search', label: 'จองรถ', icon: 'search', match: (p) => /^\/(search|trips|book)/.test(p) },
+  { href: '/my', label: 'การจองของฉัน', icon: 'ticket', match: (p) => p.startsWith('/my') },
+  { href: '/profile', label: 'โปรไฟล์', icon: 'user', match: (p) => p.startsWith('/profile') },
+];
+%><!doctype html>
+<html lang="th">
+<head><%- include('../partials/head') %></head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="/"><%- include('../partials/icon', { name: 'bus' }) %> MUT Shuttle</a>
+      <span class="spacer"></span>
+      <% if (isDriver) { %><a class="switch-link" href="/driver">งานคนขับ</a><% } %>
+      <% if (hasAdmin) { %><a class="switch-link" href="/admin">หลังบ้าน</a><% } %>
+    </div>
+  </header>
+  <main class="app-main" id="main">
+    <%- include('../partials/flash') %>
+    <%- body %>
+  </main>
+  <nav class="tabbar" aria-label="เมนูหลัก">
+    <div class="tabbar-inner">
+      <% tabs.forEach((t) => { %>
+      <a href="<%= t.href %>" <%- t.match(currentPath) ? 'aria-current="page"' : '' %>>
+        <%- include('../partials/icon', { name: t.icon }) %><span><%= t.label %></span>
+      </a>
+      <% }) %>
+    </div>
+  </nav>
+  <%- include('../partials/confirm-dialog') %>
+</body>
+</html>

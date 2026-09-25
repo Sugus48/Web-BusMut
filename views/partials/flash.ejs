@@ -1,0 +1,3 @@
+<% if (locals.flash) { %>
+<div class="alert alert-<%= flash.type %>" role="<%= flash.type === 'error' ? 'alert' : 'status' %>"><%= flash.msg %></div>
+<% } %>

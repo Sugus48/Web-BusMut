@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="th">
+<head><%- include('../partials/head') %></head>
+<body>
+<div class="admin">
+  <aside class="sidebar" aria-label="เมนูหลังบ้าน">
+    <a class="brand" href="/admin"><%- include('../partials/icon', { name: 'bus' }) %> MUT Shuttle</a>
+    <a class="nav" href="/admin" <%- currentPath === '/admin' ? 'aria-current="page"' : '' %>>Dashboard</a>
+    <% adminMenu.forEach((g) => {
+         const items = g.items.filter((i) => hasScreen(i.screen));
+         if (!items.length) return; %>
+      <div class="group"><%= g.group %></div>
+      <% items.forEach((i) => { %>
+        <a class="nav" href="<%= i.href %>" <%- currentPath.startsWith(i.href) ? 'aria-current="page"' : '' %>><%= i.label %></a>
+      <% }) %>
+    <% }) %>
+  </aside>
+  <div class="admin-main">
+    <header class="admin-top">
+      <button class="btn btn-sm menu-toggle" type="button" aria-expanded="false" aria-label="เปิดเมนู"><%- include('../partials/icon', { name: 'menu' }) %></button>
+      <span class="who">เข้าสู่ระบบเป็น <b><%= user.name %></b></span>
+      <span class="grow"></span>
+      <a class="btn btn-sm btn-ghost" href="/">โหมดผู้โดยสาร</a>
+      <% if (isDriver) { %><a class="btn btn-sm btn-ghost" href="/driver">งานคนขับ</a><% } %>
+      <form method="post" action="/logout"><button class="btn btn-sm" type="submit"><%- include('../partials/icon', { name: 'logout' }) %> ออกจากระบบ</button></form>
+    </header>
+    <main class="admin-content" id="main">
+      <%- include('../partials/flash') %>
+      <%- body %>
+    </main>
+  </div>
+</div>
+<%- include('../partials/confirm-dialog') %>
+</body>
+</html>

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="th">
+<head><%- include('../partials/head') %></head>
+<body>
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <div class="logo"><%- include('../partials/icon', { name: 'bus' }) %></div>
+        <h1>MUT Shuttle</h1>
+        <p>ระบบจองรถรับส่งและบริหารการเดินรถ</p>
+      </div>
+      <div class="card">
+        <%- include('../partials/flash') %>
+        <%- body %>
+      </div>
+    </div>
+  </div>
+  <%- include('../partials/confirm-dialog') %>
+</body>
+</html>

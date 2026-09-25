@@ -1,0 +1,23 @@
+<h2>เข้าสู่ระบบ</h2>
+<% if (locals.info) { %><div class="alert alert-success" role="status"><%= info %></div><% } %>
+<form method="post" action="/login" novalidate>
+  <input type="hidden" name="next" value="<%= next %>">
+  <div class="field">
+    <label for="username">Username</label>
+    <input class="input <%= errors.username ? 'is-invalid' : '' %>" id="username" name="username" value="<%= username %>"
+           autocomplete="username" autofocus required
+           <%- errors.username ? 'aria-invalid="true" aria-describedby="username-err"' : '' %>>
+    <% if (errors.username) { %><span class="error-text" id="username-err"><%= errors.username %></span><% } %>
+  </div>
+  <div class="field">
+    <label for="password">Password</label>
+    <div class="input-group">
+      <input class="input <%= errors.password ? 'is-invalid' : '' %>" id="password" name="password" type="password"
+             autocomplete="current-password" required
+             <%- errors.password ? 'aria-invalid="true" aria-describedby="password-err"' : '' %>>
+      <button class="btn btn-sm btn-ghost" type="button" data-toggle-password="password" aria-pressed="false">แสดง</button>
+    </div>
+    <% if (errors.password) { %><span class="error-text" id="password-err"><%= errors.password %></span><% } %>
+  </div>
+  <button class="btn btn-primary btn-block" type="submit" data-loading="กำลังเข้าสู่ระบบ...">เข้าสู่ระบบ</button>
+</form>

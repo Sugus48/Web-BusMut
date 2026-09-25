@@ -1,0 +1,25 @@
+{
+  "name": "web-busmut",
+  "version": "1.0.0",
+  "description": "ระบบจองรถรับส่งและบริหารการเดินรถ (MUT Shuttle Bus System)",
+  "main": "src/app.js",
+  "private": true,
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "node --watch src/app.js",
+    "db:init": "node scripts/db-init.js",
+    "check": "node scripts/check-views.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^18.0.3",
+    "ejs": "^6.0.1",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "mysql2": "^3.24.4",
+    "qrcode": "^1.5.4"
+  }
+}
