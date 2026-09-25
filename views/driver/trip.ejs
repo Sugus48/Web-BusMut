@@ -1,0 +1,47 @@
+<a class="back-link" href="<%= trip.trip_date === today() ? '/driver' : '/driver/history' %>"><%- include('../partials/icon', { name: 'back' }) %> กลับ</a>
+
+<div class="page-head row-between">
+  <div>
+    <h1 class="mb-0"><%= fmtTime(trip.depart_time) %> · <%= trip.route_name %></h1>
+    <div class="muted"><%= fmtDate(trip.trip_date) %> · <%= trip.plate_no %> (<%= trip.type_name %>) · <span class="mono"><%= trip.trip_id %></span></div>
+  </div>
+  <%- badge(trip.status) %>
+</div>
+
+<div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:var(--s4)">
+  <div class="kpi"><div class="k-label">จองแล้ว</div><div class="k-value"><%= counts.booked %><span class="small muted">/<%= trip.seat_count %></span></div></div>
+  <div class="kpi"><div class="k-label">Check-in</div><div class="k-value" style="color:var(--success)"><%= counts.checked_in %></div></div>
+  <div class="kpi"><div class="k-label"><%= trip.status === 'เสร็จสิ้น' ? 'No Show' : 'รอขึ้นรถ' %></div><div class="k-value"><%= trip.status === 'เสร็จสิ้น' ? counts.no_show : counts.waiting %></div></div>
+</div>
+
+<div class="stack mb-4">
+  <% if (trip.status === 'เปิด') { %>
+    <form method="post" action="/driver/trips/<%= trip.trip_id %>/start"
+          data-confirm-title="เริ่มการเดินทางรอบ <%= fmtTime(trip.depart_time) %>?"
+          data-confirm="สถานะรอบจะเปลี่ยนเป็น กำลังเดินทาง และเริ่มสแกน QR ได้"
+          data-confirm-ok="เริ่มการเดินทาง" data-confirm-tone="primary">
+      <button class="btn btn-primary btn-block" type="submit"><%- include('../partials/icon', { name: 'steering' }) %> เริ่มการเดินทาง</button>
+    </form>
+  <% } else if (trip.status === 'กำลังเดินทาง') { %>
+    <a class="btn btn-primary btn-block" href="/driver/trips/<%= trip.trip_id %>/scan"><%- include('../partials/icon', { name: 'qr' }) %> สแกน QR</a>
+    <a class="btn btn-block" href="/driver/trips/<%= trip.trip_id %>/close">ปิดงาน</a>
+  <% } %>
+</div>
+
+<h2 class="section-title">ผู้โดยสารตามจุดจอด</h2>
+<div class="card">
+  <% stops.forEach((s) => { %>
+    <div class="stop-block">
+      <div class="head"><span class="mono"><%= fmtTime(s.arrive_at) %></span> <span><%= s.stop_name %></span></div>
+      <div class="io">
+        <span class="up">ขึ้น <%= s.upSeats %> คน</span>
+        <% if (s.up.length) { %> — <%= s.up.map((p) => `${p.passenger_name} (${p.seats})${p.checkin_at ? ' ✓' : p.status === 'No Show' ? ' ✗' : ''}`).join(', ') %><% } %>
+      </div>
+      <div class="io">
+        <span class="down">ลง <%= s.downSeats %> คน</span>
+        <% if (s.down.length) { %> — <%= s.down.map((p) => `${p.passenger_name} (${p.seats})`).join(', ') %><% } %>
+      </div>
+    </div>
+  <% }) %>
+  <p class="small muted mb-0">✓ = Check-in แล้ว · ✗ = No Show</p>
+</div>

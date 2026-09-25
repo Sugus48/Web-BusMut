@@ -1,0 +1,27 @@
+<div class="page-head">
+  <h1>งานวันนี้</h1>
+  <p class="muted mb-0"><%= fmtDate(today()) %> · <%= trips.length %> รอบ</p>
+</div>
+
+<% if (!trips.length) { %>
+  <div class="card empty">
+    <strong>วันนี้ไม่มีรอบที่ได้รับมอบหมาย</strong>
+    ดูรอบที่ผ่านมาได้ที่เมนูประวัติ
+  </div>
+<% } %>
+
+<% trips.forEach((t) => {
+     const sub = { 'เปิด': 'รอเริ่มงาน', 'กำลังเดินทาง': 'กำลังเดินทาง', 'เสร็จสิ้น': 'ปิดงานแล้ว', 'ยกเลิก': 'รอบถูกยกเลิก' }[t.status]; %>
+  <a class="card card-link trip-card" href="/driver/trips/<%= t.trip_id %>">
+    <div class="row-between">
+      <span class="row"><span class="time" style="font-size:1.4rem;font-weight:700"><%= fmtTime(t.depart_time) %></span> <strong><%= t.route_name %></strong></span>
+      <%- badge(t.status) %>
+    </div>
+    <div class="meta">
+      <span>รถ: <%= t.plate_no %> (<%= t.type_name %>)</span>
+      <span>จองแล้ว <b><%= t.booked_seats %></b> / <%= t.seat_count %> ที่นั่ง</span>
+      <span>ถึงปลายทาง <%= fmtTime(t.end_at) %></span>
+    </div>
+    <div class="small muted mt-2">สถานะรอบ: <%= t.status %> (<%= sub %>)</div>
+  </a>
+<% }) %>
