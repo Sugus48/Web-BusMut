@@ -13,6 +13,10 @@ const syncTripSeats = () => db.query(
     WHERE t.status = 'เปิด' AND t.seat_count <> vt.seat_count`,
 );
 
+const VEHICLE_STATUS = ['พร้อมใช้งาน', 'ซ่อมบำรุง', 'ไม่พร้อมใช้งาน'].map((s) => ({ value: s, label: s }));
+const vehicleTypeOptions = async () => (await db.query('SELECT vehicle_type_id, type_name, seat_count FROM vehicle_types ORDER BY vehicle_type_id'))
+  .map((t) => ({ value: t.vehicle_type_id, label: `${t.type_name} (${t.seat_count} ที่นั่ง)` }));
+
 module.exports = {
   // 10.3 แผนก
   '/departments': {
@@ -110,6 +114,41 @@ module.exports = {
     beforeDelete: async (id) => {
       const n = await count('SELECT COUNT(*) AS n FROM vehicles WHERE vehicle_type_id = ?', id);
       return n ? `ลบไม่ได้ เนื่องจากมีรถ ${n} คันเป็นประเภทนี้` : null;
+    },
+  },
+
+  // 10.8 รถ
+  '/vehicles': {
+    screen: SCREEN.VEHICLES,
+    title: 'รถ',
+    table: 'vehicles', pk: 'vehicle_id', prefix: 'V', pad: 3,
+    listSql: `SELECT v.vehicle_id, v.plate_no, v.vehicle_type_id, vt.type_name, vt.seat_count, v.status
+                FROM vehicles v JOIN vehicle_types vt ON vt.vehicle_type_id = v.vehicle_type_id`,
+    searchCols: ['vehicle_id', 'plate_no'],
+    filters: [
+      { name: 'vehicle_type_id', label: 'ประเภทรถ', options: vehicleTypeOptions },
+      { name: 'status', label: 'สถานะ', options: VEHICLE_STATUS },
+    ],
+    columns: [
+      { key: 'vehicle_id', label: 'รหัสรถ' },
+      { key: 'plate_no', label: 'ทะเบียนรถ' },
+      { key: 'type_name', label: 'ประเภทรถ' },
+      { key: 'seat_count', label: 'จำนวนที่นั่ง', align: 'right' },
+      { key: 'status', label: 'สถานะ', badge: true },
+    ],
+    fields: [
+      { name: 'plate_no', label: 'ทะเบียนรถ', type: 'text', required: true, max: 20 },
+      { name: 'vehicle_type_id', label: 'ประเภทรถ', type: 'select', required: true, options: vehicleTypeOptions,
+        hint: 'จำนวนที่นั่งของรถมาจากประเภทรถ' },
+      { name: 'status', label: 'สถานะ', type: 'select', required: true, options: VEHICLE_STATUS,
+        hint: 'เฉพาะรถ "พร้อมใช้งาน" ที่เลือกได้ตอนจัดรอบการเดินรถ' },
+    ],
+    unique: { plate_no: 'ทะเบียนรถนี้มีอยู่ในระบบแล้ว' },
+    nameOf: (r) => `ทะเบียน ${r.plate_no}`,
+    afterSave: syncTripSeats,
+    beforeDelete: async (id) => {
+      const n = await count('SELECT COUNT(*) AS n FROM trips WHERE vehicle_id = ?', id);
+      return n ? `ลบไม่ได้ เนื่องจากรถคันนี้ถูกใช้ใน ${n} รอบ — เปลี่ยนสถานะเป็น "ไม่พร้อมใช้งาน" แทน` : null;
     },
   },
 };
