@@ -1,0 +1,72 @@
+<a class="back-link" href="/admin/bookings"><%- include('../partials/icon', { name: 'back' }) %> การจอง</a>
+
+<div class="page-bar">
+  <div>
+    <h1>การจอง <span class="mono"><%= booking.booking_id %></span></h1>
+    <div class="muted">จองเมื่อ <%= fmtDateTime(booking.booked_at) %></div>
+  </div>
+  <% if (can(SCREEN.BOOKINGS, 'delete')) { %>
+    <form method="post" action="/admin/bookings/<%= booking.booking_id %>/delete"
+          data-confirm-title="ลบการจอง <%= booking.booking_id %>?"
+          data-confirm="รายการจองทั้งหมด <%= items.length %> รายการภายใต้การจองนี้จะถูกลบด้วย&#10;การลบไม่สามารถย้อนกลับได้" data-confirm-ok="ลบ">
+      <button class="btn btn-danger" type="submit">ลบการจอง</button>
+    </form>
+  <% } %>
+</div>
+
+<div class="card">
+  <h2 class="card-title">ผู้จอง</h2>
+  <dl class="dl">
+    <dt>รหัสผู้ใช้งาน</dt><dd class="mono"><%= booking.user_id %></dd>
+    <dt>ชื่อ</dt><dd><%= booking.name %></dd>
+    <dt>Email</dt><dd><%= booking.email %></dd>
+    <dt>Username</dt><dd><%= booking.username %></dd>
+    <dt>แผนก</dt><dd><%= booking.department_name %></dd>
+  </dl>
+</div>
+
+<h2 class="section-title mt-5">รายการจอง (<%= items.length %>)</h2>
+<% items.forEach((i) => { const cancelled = i.status === 'ยกเลิก'; %>
+  <div class="card">
+    <div class="row" style="align-items:flex-start;gap:var(--s5)">
+      <div class="center">
+        <div class="qr-box <%= cancelled ? 'cancelled' : '' %>" style="padding:var(--s2)">
+          <img src="<%= i.qr %>" alt="QR Code รหัส <%= i.qr_code %>" style="width:140px;height:140px">
+        </div>
+        <div class="small mono mt-2"><%= i.qr_code %></div>
+      </div>
+      <div class="grow">
+        <div class="row-between mb-2">
+          <strong class="mono"><%= i.booking_item_id %></strong>
+          <%- badge(itemStatus(i)) %>
+        </div>
+        <dl class="dl">
+          <dt>รอบ</dt><dd><span class="mono"><%= i.trip_id %></span> · <%= fmtDate(i.trip_date) %> <%= fmtTime(i.depart_time) %> · <%= i.route_name %> <%- badge(i.trip_status) %></dd>
+          <dt>รถ</dt><dd><%= i.plate_no %> (<%= i.type_name %>)</dd>
+          <dt>จุดขึ้น</dt><dd><%= i.board_stop %> (ถึง <%= fmtTime(i.board_at) %>)</dd>
+          <dt>จุดลง</dt><dd><%= i.alight_stop %> (ถึง <%= fmtTime(i.alight_at) %>)</dd>
+          <dt>จำนวนที่นั่ง</dt><dd><%= i.seats %></dd>
+          <dt>Check-in</dt><dd><%= i.checkin_at ? fmtDateTime(i.checkin_at) : '—' %></dd>
+        </dl>
+        <% if (can(SCREEN.BOOKINGS, 'edit')) { %>
+          <div class="btn-row mt-4">
+            <% if (i.status === 'ยืนยัน' && !i.checkin_at) { %>
+              <form method="post" action="/admin/bookings/items/<%= i.booking_item_id %>/cancel"
+                    data-confirm-title="ยกเลิกรายการจอง <%= i.booking_item_id %>?"
+                    data-confirm="ที่นั่ง <%= i.seats %> ที่จะถูกคืนให้รอบ <%= fmtTime(i.depart_time) %> <%= i.route_name %>" data-confirm-ok="ยืนยันการยกเลิก">
+                <button class="btn btn-sm" style="color:var(--danger)" type="submit">ยกเลิกรายการ</button>
+              </form>
+            <% } %>
+            <form method="post" action="/admin/bookings/items/<%= i.booking_item_id %>/status" class="row" style="gap:var(--s2)">
+              <label class="sr-only" for="st-<%= i.booking_item_id %>">เปลี่ยนสถานะ</label>
+              <select class="input" id="st-<%= i.booking_item_id %>" name="status" style="min-height:34px;width:auto">
+                <% statuses.forEach((s) => { %><option <%= s === i.status ? 'selected' : '' %>><%= s %></option><% }) %>
+              </select>
+              <button class="btn btn-sm" type="submit">เปลี่ยนสถานะ</button>
+            </form>
+          </div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+<% }) %>

@@ -36,5 +36,6 @@ router.use('/permissions', require('./permissions'));
 router.use('/users', require('./users'));
 router.use('/routes', require('./routes'));
 router.use('/trips', require('./trips'));
+router.use('/bookings', require('./bookings'));
 
 module.exports = router;
