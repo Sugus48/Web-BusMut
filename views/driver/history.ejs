@@ -1,0 +1,29 @@
+<div class="page-head">
+  <h1>ประวัติรอบที่ขับ</h1>
+</div>
+
+<% if (!trips.length) { %>
+  <div class="card empty"><strong>ยังไม่มีประวัติ</strong></div>
+<% } else { %>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr><th>วันที่</th><th>เวลาออก</th><th>เส้นทาง</th><th>รถ</th><th class="right">จอง</th><th class="right">ผู้ใช้จริง</th><th class="right">No Show</th><th>สถานะ</th></tr>
+      </thead>
+      <tbody>
+        <% trips.forEach((t) => { %>
+          <tr>
+            <td class="nowrap"><a href="/driver/trips/<%= t.trip_id %>"><%= fmtDate(t.trip_date) %></a></td>
+            <td><%= fmtTime(t.depart_time) %></td>
+            <td class="nowrap"><%= t.route_name %></td>
+            <td class="nowrap"><%= t.plate_no %></td>
+            <td class="right"><%= t.booked %></td>
+            <td class="right"><%= t.actual %></td>
+            <td class="right"><%= t.no_show %></td>
+            <td><%- badge(t.status) %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+<% } %>

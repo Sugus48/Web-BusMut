@@ -1,0 +1,34 @@
+<a class="back-link" href="/driver/trips/<%= trip.trip_id %>"><%- include('../partials/icon', { name: 'back' }) %> รายละเอียดรอบ</a>
+
+<div class="page-head">
+  <h1 class="mb-0">ปิดงาน</h1>
+  <div class="muted"><%= fmtDate(trip.trip_date) %> · <%= fmtTime(trip.depart_time) %> · <%= trip.route_name %> · <%= trip.plate_no %></div>
+</div>
+
+<div class="kpis" style="grid-template-columns:repeat(2,1fr);margin-bottom:var(--s4)">
+  <div class="kpi"><div class="k-label">ผู้ใช้บริการจริง</div><div class="k-value" style="color:var(--success)"><%= counts.checked_in %> <span class="small muted">คน</span></div></div>
+  <div class="kpi"><div class="k-label">จะถูกบันทึกเป็น No Show</div><div class="k-value" style="color:var(--warning)"><%= noShows.length %> <span class="small muted">รายการ</span></div></div>
+</div>
+
+<h2 class="section-title">รายชื่อ No Show (ยังไม่ Check-in)</h2>
+<% if (!noShows.length) { %>
+  <div class="card empty"><strong>ผู้โดยสารทุกคน Check-in แล้ว</strong></div>
+<% } else { %>
+  <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th>รายการจอง</th><th>ชื่อ</th><th>จุดขึ้น</th><th class="right">ที่นั่ง</th></tr></thead>
+      <tbody>
+        <% noShows.forEach((n) => { %>
+          <tr><td class="mono"><%= n.booking_item_id %></td><td><%= n.passenger_name %></td><td><%= fmtTime(n.board_at) %> <%= n.board_stop %></td><td class="right"><%= n.seats %></td></tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+<% } %>
+
+<form class="mt-5" method="post" action="/driver/trips/<%= trip.trip_id %>/close"
+      data-confirm-title="ยืนยันปิดงานรอบ <%= fmtTime(trip.depart_time) %>?"
+      data-confirm="ผู้ใช้บริการจริง <%= counts.checked_in %> คน&#10;No Show <%= noShows.length %> รายการ&#10;สถานะรอบจะเปลี่ยนเป็น เสร็จสิ้น และแก้ไขไม่ได้"
+      data-confirm-ok="ยืนยันปิดงาน">
+  <button class="btn btn-danger btn-block" type="submit">ปิดงาน</button>
+</form>

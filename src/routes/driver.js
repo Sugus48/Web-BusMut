@@ -124,4 +124,59 @@ router.post('/trips/:id/checkin', async (req, res, next) => {
   res.redirect(`/driver/trips/${trip.trip_id}/scan`);
 });
 
+// 9.4 ปิดงาน — หน้าสรุปก่อนยืนยัน
+router.get('/trips/:id/close', async (req, res, next) => {
+  const trip = await myTrip(req, res);
+  if (trip === null) return next();
+  if (!trip) return;
+  if (trip.status !== 'กำลังเดินทาง') {
+    req.flash('error', 'ปิดงานได้เฉพาะรอบที่กำลังเดินทาง');
+    return res.redirect(`/driver/trips/${trip.trip_id}`);
+  }
+  const counts = await tripCounts(trip.trip_id);
+  const noShows = await db.query(
+    `SELECT t.booking_item_id, t.passenger_name, t.seats, s.stop_name AS board_stop, t.board_at
+       FROM v_booking_item_times t JOIN stops s ON s.stop_id = t.board_stop_id
+      WHERE t.trip_id = ? AND t.status = 'ยืนยัน' AND t.checkin_at IS NULL
+      ORDER BY t.board_at`,
+    [trip.trip_id],
+  );
+  res.page('driver/close', { title: 'ปิดงาน', trip, counts, noShows });
+});
+
+router.post('/trips/:id/close', async (req, res, next) => {
+  const trip = await myTrip(req, res);
+  if (trip === null) return next();
+  if (!trip) return;
+  try {
+    const [[summary]] = await db.call('CALL sp_close_trip(?)', [trip.trip_id]);
+    req.flash('success', `ปิดงานแล้ว — ผู้ใช้บริการจริง ${summary.actual_passengers} คน, No Show ${summary.no_show_items || 0} รายการ`);
+  } catch (err) {
+    if (!err.sqlState) throw err;
+    req.flash('error', db.errorMessage(err));
+  }
+  res.redirect(`/driver/trips/${trip.trip_id}`);
+});
+
+// 9.5 ประวัติรอบที่ขับ
+router.get('/history', async (req, res) => {
+  const trips = await db.query(
+    `SELECT tr.trip_id, tr.trip_date, tr.depart_time, tr.status, r.route_name, v.plate_no, vt.type_name,
+            COALESCE(SUM(CASE WHEN bi.status <> 'ยกเลิก' THEN bi.seats END), 0) AS booked,
+            COALESCE(SUM(CASE WHEN bi.checkin_at IS NOT NULL THEN bi.seats END), 0) AS actual,
+            COALESCE(SUM(CASE WHEN bi.status = 'No Show' THEN bi.seats END), 0) AS no_show
+       FROM trips tr
+       JOIN routes r         ON r.route_id = tr.route_id
+       JOIN vehicles v       ON v.vehicle_id = tr.vehicle_id
+       JOIN vehicle_types vt ON vt.vehicle_type_id = v.vehicle_type_id
+       LEFT JOIN booking_items bi ON bi.trip_id = tr.trip_id
+      WHERE tr.driver_id = ? AND (tr.trip_date < CURDATE() OR tr.status IN ('เสร็จสิ้น', 'ยกเลิก'))
+      GROUP BY tr.trip_id, tr.trip_date, tr.depart_time, tr.status, r.route_name, v.plate_no, vt.type_name
+      ORDER BY tr.trip_date DESC, tr.depart_time DESC
+      LIMIT 200`,
+    [req.session.user.user_id],
+  );
+  res.page('driver/history', { title: 'ประวัติรอบที่ขับ', trips });
+});
+
 module.exports = router;
