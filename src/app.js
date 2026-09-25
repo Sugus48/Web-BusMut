@@ -45,6 +45,7 @@ app.use((req, res, next) => {
 app.use(attachUser);
 
 app.use(require('./routes/auth'));
+app.use(require('./routes/user'));
 
 // 404
 app.use((req, res) => {

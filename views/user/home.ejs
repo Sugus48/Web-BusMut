@@ -1,0 +1,48 @@
+<section class="hero">
+  <h1>สวัสดี คุณ<%= user.name %></h1>
+  <p>จองรถรับส่งล่วงหน้าได้อย่างน้อย 20 นาทีก่อนรถถึงจุดขึ้น</p>
+</section>
+
+<h2 class="section-title">การเดินทางถัดไป</h2>
+<% if (next) { %>
+  <article class="card trip-card">
+    <div class="row-between">
+      <strong><%= next.route_name %></strong>
+      <%- badge(itemStatus(next)) %>
+    </div>
+    <div class="muted small"><%= fmtDate(next.trip_date) %> · รถออก <%= fmtTime(next.depart_time) %></div>
+    <div class="times">
+      <span class="time"><%= fmtTime(next.board_at) %></span>
+      <span class="arrow" aria-hidden="true"></span>
+      <span class="time"><%= fmtTime(next.alight_at) %></span>
+    </div>
+    <div class="stop-names"><span><%= next.board_stop %></span><span class="right"><%= next.alight_stop %></span></div>
+    <div class="meta">
+      <span><%= next.type_name %> <%= next.plate_no %></span>
+      <span><%= next.seats %> ที่นั่ง</span>
+      <span class="mono"><%= next.booking_item_id %></span>
+    </div>
+    <div class="foot">
+      <span class="small muted">แสดง QR Code ให้คนขับสแกนตอนขึ้นรถ</span>
+      <a class="btn btn-primary btn-sm" href="/my/items/<%= next.booking_item_id %>"><%- include('../partials/icon', { name: 'qr' }) %> ดู QR</a>
+    </div>
+  </article>
+<% } else { %>
+  <div class="card empty">
+    <strong>ยังไม่มีการเดินทางที่กำลังจะถึง</strong>
+    เริ่มค้นหารอบรถแล้วจองที่นั่งได้เลย
+  </div>
+<% } %>
+
+<div class="card mt-4 row-between">
+  <div>
+    <div class="muted small">รายการจองที่กำลังจะถึง</div>
+    <div class="stat-inline"><b><%= upcomingCount %></b> รายการ</div>
+  </div>
+  <a class="btn btn-sm" href="/my">ดูทั้งหมด</a>
+</div>
+
+<div class="quick mt-4">
+  <a href="/search"><%- include('../partials/icon', { name: 'search' }) %> จองรถ</a>
+  <a href="/my"><%- include('../partials/icon', { name: 'ticket' }) %> การจองของฉัน</a>
+</div>
