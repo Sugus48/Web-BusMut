@@ -4,6 +4,15 @@ const { SCREEN } = require('../../middleware/auth');
 
 const count = async (sql, id) => (await db.one(sql, [id])).n;
 
+// จำนวนที่นั่งของรอบ (Derived จากประเภทรถ) — อัปเดตรอบที่ยังเปิดเมื่อประเภทรถ/รถเปลี่ยน
+const syncTripSeats = () => db.query(
+  `UPDATE trips t
+     JOIN vehicles v       ON v.vehicle_id = t.vehicle_id
+     JOIN vehicle_types vt ON vt.vehicle_type_id = v.vehicle_type_id
+      SET t.seat_count = vt.seat_count
+    WHERE t.status = 'เปิด' AND t.seat_count <> vt.seat_count`,
+);
+
 module.exports = {
   // 10.3 แผนก
   '/departments': {
@@ -72,5 +81,35 @@ module.exports = {
     nameOf: (r) => r.screen_name,
     deleteWarning: 'สิทธิ์ของหน้าจอนี้ในทุกตำแหน่งจะถูกลบด้วย',
     beforeDelete: async (id) => (Object.values(SCREEN).includes(id) ? 'หน้าจอนี้ถูกใช้งานโดยระบบ ลบไม่ได้' : null),
+  },
+
+  // 10.7 ประเภทรถ
+  '/vehicle-types': {
+    screen: SCREEN.VEHICLE_TYPES,
+    title: 'ประเภทรถ',
+    table: 'vehicle_types', pk: 'vehicle_type_id', prefix: 'T', pad: 2,
+    listSql: `SELECT vt.vehicle_type_id, vt.type_name, vt.description, vt.seat_count,
+                     (SELECT COUNT(*) FROM vehicles v WHERE v.vehicle_type_id = vt.vehicle_type_id) AS vehicle_count
+                FROM vehicle_types vt`,
+    searchCols: ['vehicle_type_id', 'type_name', 'description'],
+    columns: [
+      { key: 'vehicle_type_id', label: 'รหัสประเภทรถ' },
+      { key: 'type_name', label: 'ชื่อประเภทรถ' },
+      { key: 'description', label: 'รายละเอียด' },
+      { key: 'seat_count', label: 'จำนวนที่นั่ง', align: 'right' },
+      { key: 'vehicle_count', label: 'จำนวนรถ', align: 'right' },
+    ],
+    fields: [
+      { name: 'type_name', label: 'ชื่อประเภทรถ', type: 'text', required: true, max: 50 },
+      { name: 'description', label: 'รายละเอียด', type: 'textarea', max: 255 },
+      { name: 'seat_count', label: 'จำนวนที่นั่ง', type: 'number', required: true, min: 1,
+        hint: 'เมื่อแก้ไข รอบที่ยังเปิดจองของรถประเภทนี้จะใช้จำนวนที่นั่งใหม่' },
+    ],
+    nameOf: (r) => r.type_name,
+    afterSave: syncTripSeats,
+    beforeDelete: async (id) => {
+      const n = await count('SELECT COUNT(*) AS n FROM vehicles WHERE vehicle_type_id = ?', id);
+      return n ? `ลบไม่ได้ เนื่องจากมีรถ ${n} คันเป็นประเภทนี้` : null;
+    },
   },
 };
