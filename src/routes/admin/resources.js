@@ -151,4 +151,37 @@ module.exports = {
       return n ? `ลบไม่ได้ เนื่องจากรถคันนี้ถูกใช้ใน ${n} รอบ — เปลี่ยนสถานะเป็น "ไม่พร้อมใช้งาน" แทน` : null;
     },
   },
+
+  // 10.9 จุดจอด
+  '/stops': {
+    screen: SCREEN.STOPS,
+    title: 'จุดจอด',
+    note: 'ห้ามลบจุดจอดที่ถูกใช้ในเส้นทางหรือรายการจอง',
+    table: 'stops', pk: 'stop_id', prefix: 'S', pad: 3,
+    listSql: `SELECT s.stop_id, s.stop_name,
+                     (SELECT COUNT(DISTINCT rs.route_id) FROM route_stops rs WHERE rs.stop_id = s.stop_id) AS route_count,
+                     (SELECT COUNT(*) FROM booking_items bi
+                       WHERE bi.board_stop_id = s.stop_id OR bi.alight_stop_id = s.stop_id) AS item_count
+                FROM stops s`,
+    searchCols: ['stop_id', 'stop_name'],
+    columns: [
+      { key: 'stop_id', label: 'รหัสจุดจอด' },
+      { key: 'stop_name', label: 'ชื่อจุดจอด' },
+      { key: 'route_count', label: 'ใช้ในเส้นทาง', align: 'right' },
+      { key: 'item_count', label: 'ใช้ในรายการจอง', align: 'right' },
+    ],
+    fields: [{ name: 'stop_name', label: 'ชื่อจุดจอด', type: 'text', required: true, max: 150 }],
+    nameOf: (r) => r.stop_name,
+    beforeDelete: async (id) => {
+      const u = await db.one(
+        `SELECT (SELECT COUNT(DISTINCT route_id) FROM route_stops WHERE stop_id = ?) AS routes,
+                (SELECT COUNT(*) FROM booking_items WHERE board_stop_id = ? OR alight_stop_id = ?) AS items`,
+        [id, id, id],
+      );
+      const why = [];
+      if (u.routes) why.push(`ถูกใช้ใน ${u.routes} เส้นทาง`);
+      if (u.items) why.push(`ถูกใช้ใน ${u.items} รายการจอง`);
+      return why.length ? `ลบจุดจอดไม่ได้ เนื่องจาก${why.join(' และ ')}` : null;
+    },
+  },
 };
