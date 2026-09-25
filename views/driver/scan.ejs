@@ -1,0 +1,89 @@
+<a class="back-link" href="/driver/trips/<%= trip.trip_id %>"><%- include('../partials/icon', { name: 'back' }) %> รายละเอียดรอบ</a>
+
+<div class="page-head row-between">
+  <div>
+    <h1 class="mb-0">สแกน QR</h1>
+    <div class="muted"><%= fmtTime(trip.depart_time) %> · <%= trip.route_name %> · <%= trip.plate_no %></div>
+  </div>
+  <div class="right">
+    <div class="small muted">Check-in แล้ว</div>
+    <div style="font-size:1.4rem;font-weight:700"><%= counts.checked_in %> / <%= counts.booked %></div>
+  </div>
+</div>
+
+<% if (result) { %>
+  <div class="scan-result <%= result.ok ? 'ok' : 'err' %>" role="alert">
+    <div class="big"><%= result.ok ? '✓ อนุญาตให้ขึ้นรถ' : '✗ ไม่อนุญาตให้ขึ้นรถ' %></div>
+    <div><%= result.msg %></div>
+    <% if (result.qr) { %><div class="small mono mt-2">QR: <%= result.qr %></div><% } %>
+  </div>
+<% } %>
+
+<% if (trip.status !== 'กำลังเดินทาง') { %>
+  <div class="alert alert-warning">
+    <%= trip.status === 'เปิด' ? 'กรุณาเริ่มการเดินทางก่อนสแกน QR' : `รอบนี้สถานะ ${trip.status} แล้ว ไม่สามารถสแกนได้` %>
+  </div>
+<% } else { %>
+  <div class="card">
+    <div id="reader" class="scanner" aria-label="ภาพจากกล้องสำหรับสแกน QR"></div>
+    <p class="center small muted mt-2 mb-2" id="cam-status">กดปุ่มเพื่อเปิดกล้อง แล้วหัน QR Code ของผู้โดยสารเข้ากล้อง</p>
+    <button class="btn btn-primary btn-block" type="button" id="cam-btn"><%- include('../partials/icon', { name: 'qr' }) %> เปิดกล้องสแกน</button>
+  </div>
+
+  <form class="card" method="post" action="/driver/trips/<%= trip.trip_id %>/checkin" id="checkin-form">
+    <div class="field mb-2">
+      <label for="qr">หรือกรอกรหัส QR</label>
+      <input class="input mono" id="qr" name="qr" placeholder="เช่น QR-BD001-XXXXXXXX" autocomplete="off" required>
+    </div>
+    <button class="btn btn-block" type="submit">Check-in</button>
+  </form>
+
+  <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script>
+    (function () {
+      const btn = document.getElementById('cam-btn');
+      const status = document.getElementById('cam-status');
+      const form = document.getElementById('checkin-form');
+      const input = document.getElementById('qr');
+      let scanner = null;
+      let running = false;
+
+      const remember = (v) => { try { sessionStorage.setItem('mut-cam', v ? '1' : ''); } catch (e) {} };
+      const wasOn = () => { try { return sessionStorage.getItem('mut-cam') === '1'; } catch (e) { return false; } };
+
+      async function start() {
+        if (typeof Html5Qrcode === 'undefined') {
+          status.textContent = 'โหลดตัวสแกนไม่ได้ (ไม่มีอินเทอร์เน็ต) — กรอกรหัส QR แทน';
+          return;
+        }
+        scanner = scanner || new Html5Qrcode('reader');
+        try {
+          await scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: 220 }, async (text) => {
+            if (!running) return;
+            running = false;
+            await scanner.stop();
+            input.value = text;
+            status.textContent = 'กำลังตรวจสอบ...';
+            form.submit();
+          });
+          running = true;
+          remember(true);
+          btn.textContent = 'ปิดกล้อง';
+          status.textContent = 'กำลังสแกน... หัน QR Code เข้ากล้อง';
+        } catch (e) {
+          remember(false);
+          status.textContent = 'เปิดกล้องไม่ได้ (ไม่ได้รับอนุญาต หรือไม่มีกล้อง) — กรอกรหัส QR แทน';
+        }
+      }
+      async function stop() {
+        if (scanner && running) await scanner.stop();
+        running = false;
+        remember(false);
+        btn.textContent = 'เปิดกล้องสแกน';
+        status.textContent = 'ปิดกล้องแล้ว';
+      }
+      btn.addEventListener('click', () => (running ? stop() : start()));
+      if (wasOn()) start(); // สแกนต่อเนื่องหลังแสดงผลรอบก่อน
+    })();
+  </script>
+<% } %>

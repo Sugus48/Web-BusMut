@@ -91,4 +91,37 @@ router.post('/trips/:id/start', async (req, res) => {
   res.redirect(`/driver/trips/${encodeURIComponent(req.params.id)}`);
 });
 
+// 9.3 สแกน QR (Check-in)
+router.get('/trips/:id/scan', async (req, res, next) => {
+  const trip = await myTrip(req, res);
+  if (trip === null) return next();
+  if (!trip) return;
+  const result = req.session.scanResult || null;
+  delete req.session.scanResult;
+  const counts = await tripCounts(trip.trip_id);
+  res.page('driver/scan', { title: 'สแกน QR', trip, counts, result });
+});
+
+router.post('/trips/:id/checkin', async (req, res, next) => {
+  const trip = await myTrip(req, res);
+  if (trip === null) return next();
+  if (!trip) return;
+  const qr = String(req.body.qr || '').trim();
+  if (!qr) {
+    req.session.scanResult = { ok: false, msg: 'กรุณาสแกนหรือกรอกรหัส QR' };
+  } else {
+    try {
+      const [[r]] = await db.call('CALL sp_checkin(?, ?)', [qr, trip.trip_id]);
+      req.session.scanResult = {
+        ok: true,
+        msg: `Check-in สำเร็จ — ${r.passenger_name} ${r.seats} ที่นั่ง (ลงที่ ${r.alight_stop})`,
+      };
+    } catch (err) {
+      if (!err.sqlState) throw err;
+      req.session.scanResult = { ok: false, msg: db.errorMessage(err), qr };
+    }
+  }
+  res.redirect(`/driver/trips/${trip.trip_id}/scan`);
+});
+
 module.exports = router;
