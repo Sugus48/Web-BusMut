@@ -1,0 +1,98 @@
+<%
+const field = (name) => ({
+  cls: errors[name] ? 'is-invalid' : '',
+  aria: errors[name] ? `aria-invalid="true" aria-describedby="${name}-err"` : '',
+  err: errors[name] ? `<span class="error-text" id="${name}-err">${escapeHtml(errors[name])}</span>` : '',
+});
+%>
+<a class="back-link" href="/admin/trips"><%- include('../partials/icon', { name: 'back' }) %> รอบการเดินรถ</a>
+<div class="page-bar"><h1><%= title %></h1></div>
+
+<% if (errors._conflict) { %><div class="alert alert-error" role="alert">พบรอบที่ชนเวลา — ดูรายละเอียดที่ช่องรถ/คนขับ</div><% } %>
+<% if (errors._form) { %><div class="alert alert-error" role="alert"><%= errors._form %></div><% } %>
+<% if (trip && trip.booked_seats > 0) { %><div class="alert alert-info">รอบนี้มีการจองแล้ว <%= trip.booked_seats %> ที่นั่ง</div><% } %>
+
+<form class="card form-card" method="post" action="<%= isNew ? '/admin/trips' : `/admin/trips/${id}` %>" novalidate>
+  <div class="form-grid">
+    <% const r = field('route_id'); %>
+    <div class="field">
+      <label for="route_id">เส้นทาง</label>
+      <select class="input <%= r.cls %>" id="route_id" name="route_id" required <%- r.aria %>>
+        <option value="">— เลือกเส้นทาง —</option>
+        <% routes.forEach((x) => { %><option value="<%= x.route_id %>" data-minutes="<%= x.total_minutes %>" <%= x.route_id === values.route_id ? 'selected' : '' %>><%= x.route_name %> (<%= x.total_minutes %> นาที)</option><% }) %>
+      </select>
+      <%- r.err %>
+    </div>
+    <% const d = field('trip_date'); %>
+    <div class="field">
+      <label for="trip_date">วันที่เดินรถ</label>
+      <input class="input <%= d.cls %>" type="date" id="trip_date" name="trip_date" value="<%= values.trip_date || '' %>" <%= isNew ? `min=${today()}` : '' %> required <%- d.aria %>>
+      <%- d.err %>
+    </div>
+    <% const t = field('depart_time'); %>
+    <div class="field">
+      <label for="depart_time">เวลาออก</label>
+      <input class="input <%= t.cls %>" type="time" id="depart_time" name="depart_time" value="<%= values.depart_time ? String(values.depart_time).slice(0, 5) : '' %>" required <%- t.aria %>>
+      <span class="hint" id="end-hint"></span>
+      <%- t.err %>
+    </div>
+    <% const v = field('vehicle_id'); %>
+    <div class="field">
+      <label for="vehicle_id">รถ (เฉพาะพร้อมใช้งาน)</label>
+      <select class="input <%= v.cls %>" id="vehicle_id" name="vehicle_id" required <%- v.aria %>>
+        <option value="">— เลือกรถ —</option>
+        <% vehicles.forEach((x) => { %><option value="<%= x.vehicle_id %>" data-seats="<%= x.seat_count %>" <%= x.vehicle_id === values.vehicle_id ? 'selected' : '' %>><%= x.plate_no %> · <%= x.type_name %><%= x.status !== 'พร้อมใช้งาน' ? ` (${x.status})` : '' %></option><% }) %>
+      </select>
+      <%- v.err %>
+    </div>
+    <div class="field">
+      <label for="seat_count">จำนวนที่นั่ง</label>
+      <input class="input" id="seat_count" value="" readonly aria-describedby="seat-hint">
+      <span class="hint" id="seat-hint">ดึงจากประเภทรถอัตโนมัติ</span>
+    </div>
+    <% const dr = field('driver_id'); %>
+    <div class="field">
+      <label for="driver_id">คนขับ</label>
+      <select class="input <%= dr.cls %>" id="driver_id" name="driver_id" required <%- dr.aria %>>
+        <option value="">— เลือกคนขับ —</option>
+        <% drivers.forEach((x) => { %><option value="<%= x.user_id %>" <%= x.user_id === values.driver_id ? 'selected' : '' %>><%= x.name %> (<%= x.position_name %>)</option><% }) %>
+      </select>
+      <%- dr.err %>
+    </div>
+    <% if (!isNew) { const s = field('status'); %>
+      <div class="field">
+        <label for="status">สถานะรอบ</label>
+        <select class="input <%= s.cls %>" id="status" name="status" <%- s.aria %>>
+          <% statuses.forEach((x) => { %><option <%= x === values.status ? 'selected' : '' %>><%= x %></option><% }) %>
+        </select>
+        <%- s.err %>
+      </div>
+    <% } %>
+  </div>
+  <div class="btn-row end">
+    <a class="btn" href="/admin/trips">ยกเลิก</a>
+    <button class="btn btn-primary" type="submit" data-loading="กำลังบันทึก...">บันทึก</button>
+  </div>
+</form>
+
+<script>
+  (function () {
+    const route = document.getElementById('route_id');
+    const time = document.getElementById('depart_time');
+    const vehicle = document.getElementById('vehicle_id');
+    const seats = document.getElementById('seat_count');
+    const hint = document.getElementById('end-hint');
+    function sync() {
+      const opt = vehicle.selectedOptions[0];
+      seats.value = opt && opt.dataset.seats ? opt.dataset.seats + ' ที่นั่ง' : '';
+      const mins = route.selectedOptions[0] && Number(route.selectedOptions[0].dataset.minutes);
+      if (time.value && mins >= 0 && route.value) {
+        const [h, m] = time.value.split(':').map(Number);
+        const end = h * 60 + m + mins;
+        hint.textContent = 'ช่วงเวลาของรอบ ' + time.value + '–' + String(Math.floor(end / 60) % 24).padStart(2, '0') + ':' + String(end % 60).padStart(2, '0');
+      } else hint.textContent = '';
+    }
+    [route, time, vehicle].forEach((el) => el.addEventListener('input', sync));
+    sync();
+  })();
+</script>

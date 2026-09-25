@@ -1,0 +1,81 @@
+<div class="page-bar">
+  <h1>รอบการเดินรถ</h1>
+  <% if (can(SCREEN.TRIPS, 'add')) { %><a class="btn btn-primary" href="/admin/trips/new<%= qs({ date: f.date }) %>">+ เพิ่มรอบ</a><% } %>
+</div>
+
+<form class="filters" method="get" action="/admin/trips">
+  <div class="field">
+    <label for="date">วันที่</label>
+    <input class="input" type="date" id="date" name="date" value="<%= f.date %>">
+  </div>
+  <div class="field">
+    <label for="route">เส้นทาง</label>
+    <select class="input" id="route" name="route">
+      <option value="">ทั้งหมด</option>
+      <% routes.forEach((r) => { %><option value="<%= r.route_id %>" <%= r.route_id === f.route ? 'selected' : '' %>><%= r.route_name %></option><% }) %>
+    </select>
+  </div>
+  <div class="field">
+    <label for="driver">คนขับ</label>
+    <select class="input" id="driver" name="driver">
+      <option value="">ทั้งหมด</option>
+      <% drivers.forEach((d) => { %><option value="<%= d.user_id %>" <%= d.user_id === f.driver ? 'selected' : '' %>><%= d.name %></option><% }) %>
+    </select>
+  </div>
+  <div class="field">
+    <label for="vehicle">รถ</label>
+    <select class="input" id="vehicle" name="vehicle">
+      <option value="">ทั้งหมด</option>
+      <% allVehicles.forEach((v) => { %><option value="<%= v.vehicle_id %>" <%= v.vehicle_id === f.vehicle ? 'selected' : '' %>><%= v.plate_no %></option><% }) %>
+    </select>
+  </div>
+  <div class="field">
+    <label for="status">สถานะรอบ</label>
+    <select class="input" id="status" name="status">
+      <option value="">ทั้งหมด</option>
+      <% statuses.forEach((s) => { %><option <%= s === f.status ? 'selected' : '' %>><%= s %></option><% }) %>
+    </select>
+  </div>
+  <div class="btn-row">
+    <button class="btn" type="submit">ค้นหา</button>
+    <a class="btn btn-ghost" href="/admin/trips?date=">ทุกวัน</a>
+  </div>
+</form>
+
+<% if (!rows.length) { %>
+  <div class="card empty"><strong>ไม่พบรอบการเดินรถ</strong>ลองเปลี่ยนตัวกรอง</div>
+<% } else { %>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr><th>รหัสรอบ</th><th>วันที่เดินรถ</th><th>เวลาออก</th><th>ถึงปลายทาง</th><th>เส้นทาง</th><th>คนขับ</th><th>รถ</th><th class="right">จองแล้ว</th><th>สถานะ</th><th class="right">จัดการ</th></tr>
+      </thead>
+      <tbody>
+        <% rows.forEach((t) => { %>
+          <tr>
+            <td class="mono"><%= t.trip_id %></td>
+            <td class="nowrap"><%= fmtDate(t.trip_date) %></td>
+            <td><b><%= fmtTime(t.depart_time) %></b></td>
+            <td><%= fmtTime(t.end_at) %></td>
+            <td class="nowrap"><%= t.route_name %></td>
+            <td class="nowrap"><%= t.driver_name %></td>
+            <td class="nowrap"><%= t.plate_no %> <span class="muted small">(<%= t.type_name %>)</span></td>
+            <td class="right nowrap"><%= t.booked_seats %> / <%= t.seat_count %></td>
+            <td><%- badge(t.status) %></td>
+            <td class="actions">
+              <% if (hasScreen(SCREEN.BOOKINGS)) { %><a class="btn btn-sm btn-ghost" href="/admin/bookings?trip=<%= t.trip_id %>">การจอง</a><% } %>
+              <% if (can(SCREEN.TRIPS, 'edit')) { %><a class="btn btn-sm" href="/admin/trips/<%= t.trip_id %>/edit">แก้ไข</a><% } %>
+              <% if (can(SCREEN.TRIPS, 'delete')) { %>
+                <form method="post" action="/admin/trips/<%= t.trip_id %>/delete"
+                      data-confirm-title="ลบรอบ <%= t.trip_id %>?" data-confirm="<%= fmtDate(t.trip_date) %> <%= fmtTime(t.depart_time) %> <%= t.route_name %>&#10;การลบไม่สามารถย้อนกลับได้" data-confirm-ok="ลบ">
+                  <button class="btn btn-sm" style="color:var(--danger)" type="submit">ลบ</button>
+                </form>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <p class="small muted mt-2">ทั้งหมด <%= rows.length %> รอบ</p>
+<% } %>
