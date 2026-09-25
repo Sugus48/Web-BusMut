@@ -1,0 +1,72 @@
+<div class="page-bar">
+  <h1>ผู้ใช้งาน / พนักงาน</h1>
+  <% if (can(SCREEN.USERS, 'add')) { %><a class="btn btn-primary" href="/admin/users/new">+ เพิ่มผู้ใช้งาน</a><% } %>
+</div>
+
+<form class="filters" method="get" action="/admin/users" role="search">
+  <div class="field wide">
+    <label for="q">ค้นหา</label>
+    <input class="input" id="q" name="q" value="<%= q %>" placeholder="รหัส, ชื่อ, email, username">
+  </div>
+  <div class="field">
+    <label for="department">แผนก</label>
+    <select class="input" id="department" name="department">
+      <option value="">ทั้งหมด</option>
+      <% departments.forEach((d) => { %><option value="<%= d.department_id %>" <%= d.department_id === department ? 'selected' : '' %>><%= d.department_name %></option><% }) %>
+    </select>
+  </div>
+  <div class="field">
+    <label for="position">ตำแหน่ง</label>
+    <select class="input" id="position" name="position">
+      <option value="">ทั้งหมด</option>
+      <% positions.forEach((p) => { %><option value="<%= p.position_id %>" <%= p.position_id === position ? 'selected' : '' %>><%= p.position_name %></option><% }) %>
+    </select>
+  </div>
+  <div class="field">
+    <label for="type">ประเภท</label>
+    <select class="input" id="type" name="type">
+      <option value="">ทั้งหมด</option>
+      <option value="employee" <%= type === 'employee' ? 'selected' : '' %>>พนักงาน</option>
+      <option value="user" <%= type === 'user' ? 'selected' : '' %>>ผู้ใช้บริการทั่วไป</option>
+    </select>
+  </div>
+  <div class="btn-row">
+    <button class="btn" type="submit">ค้นหา</button>
+    <a class="btn btn-ghost" href="/admin/users">ล้าง</a>
+  </div>
+</form>
+
+<% if (!rows.length) { %>
+  <div class="card empty"><strong>ไม่พบผู้ใช้งาน</strong></div>
+<% } else { %>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr><th>รหัส</th><th>ชื่อ</th><th>email</th><th>username</th><th>แผนก</th><th>ตำแหน่ง</th><th>เบอร์โทร</th><th class="right">จัดการ</th></tr>
+      </thead>
+      <tbody>
+        <% rows.forEach((u) => { %>
+          <tr>
+            <td class="mono"><%= u.user_id %></td>
+            <td><%= u.name %></td>
+            <td><%= u.email %></td>
+            <td><%= u.username %></td>
+            <td><%= u.department_name %></td>
+            <td><%= u.position_name || '—' %></td>
+            <td class="nowrap"><%= u.phone || '—' %></td>
+            <td class="actions">
+              <% if (can(SCREEN.USERS, 'edit')) { %><a class="btn btn-sm" href="/admin/users/<%= u.user_id %>/edit">แก้ไข</a><% } %>
+              <% if (can(SCREEN.USERS, 'delete')) { %>
+                <form method="post" action="/admin/users/<%= u.user_id %>/delete"
+                      data-confirm-title="ลบผู้ใช้งาน <%= u.user_id %>?" data-confirm="<%= u.name %> (<%= u.username %>)&#10;การลบไม่สามารถย้อนกลับได้" data-confirm-ok="ลบ">
+                  <button class="btn btn-sm" style="color:var(--danger)" type="submit">ลบ</button>
+                </form>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <p class="small muted mt-2">ทั้งหมด <%= rows.length %> คน</p>
+<% } %>

@@ -1,0 +1,78 @@
+<%
+const field = (name) => ({
+  cls: errors[name] ? 'is-invalid' : '',
+  aria: errors[name] ? `aria-invalid="true" aria-describedby="${name}-err"` : '',
+  err: errors[name] ? `<span class="error-text" id="${name}-err">${escapeHtml(errors[name])}</span>` : '',
+});
+%>
+<a class="back-link" href="/admin/users"><%- include('../partials/icon', { name: 'back' }) %> ผู้ใช้งาน / พนักงาน</a>
+<div class="page-bar"><h1><%= title %></h1></div>
+
+<form class="card form-card" method="post" action="<%= isNew ? '/admin/users' : `/admin/users/${id}` %>" novalidate>
+  <div class="form-grid">
+    <% [['name', 'ชื่อ', 'text', 'name'], ['email', 'Email', 'email', 'email'], ['username', 'Username', 'text', 'username']].forEach(([n, label, type, ac]) => { const f = field(n); %>
+      <div class="field">
+        <label for="<%= n %>"><%= label %></label>
+        <input class="input <%= f.cls %>" id="<%= n %>" name="<%= n %>" type="<%= type %>" value="<%= values[n] || '' %>" autocomplete="off" required <%- f.aria %>>
+        <%- f.err %>
+      </div>
+    <% }) %>
+    <% const pw = field('password'); %>
+    <div class="field">
+      <label for="password">Password<%= isNew ? '' : ' (เว้นว่างถ้าไม่เปลี่ยน)' %></label>
+      <div class="input-group">
+        <input class="input <%= pw.cls %>" id="password" name="password" type="password" autocomplete="new-password" <%= isNew ? 'required' : '' %> <%- pw.aria %>>
+        <button class="btn btn-sm btn-ghost" type="button" data-toggle-password="password" aria-pressed="false">แสดง</button>
+      </div>
+      <%- pw.err %>
+    </div>
+    <% const dep = field('department_id'); %>
+    <div class="field">
+      <label for="department_id">แผนก</label>
+      <select class="input <%= dep.cls %>" id="department_id" name="department_id" required <%- dep.aria %>>
+        <option value="">— เลือกแผนก —</option>
+        <% departments.forEach((d) => { %><option value="<%= d.department_id %>" <%= d.department_id === values.department_id ? 'selected' : '' %>><%= d.department_name %></option><% }) %>
+      </select>
+      <%- dep.err %>
+    </div>
+  </div>
+
+  <hr class="divider">
+  <div class="field">
+    <label class="switch"><input type="checkbox" name="is_employee" value="1" id="is_employee" <%= values.is_employee ? 'checked' : '' %>> เป็นพนักงาน</label>
+    <span class="hint">พนักงานมีเบอร์โทรและตำแหน่ง — สิทธิ์การใช้งานหลังบ้าน/งานคนขับกำหนดตามตำแหน่ง</span>
+    <%- field('is_employee').err %>
+  </div>
+  <div class="form-grid" id="employee-fields">
+    <% const ph = field('phone'); %>
+    <div class="field">
+      <label for="phone">เบอร์โทร</label>
+      <input class="input <%= ph.cls %>" id="phone" name="phone" type="tel" value="<%= values.phone || '' %>" <%- ph.aria %>>
+      <%- ph.err %>
+    </div>
+    <% const pos = field('position_id'); %>
+    <div class="field">
+      <label for="position_id">ตำแหน่ง</label>
+      <select class="input <%= pos.cls %>" id="position_id" name="position_id" <%- pos.aria %>>
+        <option value="">— เลือกตำแหน่ง —</option>
+        <% positions.forEach((p) => { %><option value="<%= p.position_id %>" <%= p.position_id === values.position_id ? 'selected' : '' %>><%= p.position_name %></option><% }) %>
+      </select>
+      <%- pos.err %>
+    </div>
+  </div>
+
+  <div class="btn-row end">
+    <a class="btn" href="/admin/users">ยกเลิก</a>
+    <button class="btn btn-primary" type="submit" data-loading="กำลังบันทึก...">บันทึก</button>
+  </div>
+</form>
+
+<script>
+  (function () {
+    const toggle = document.getElementById('is_employee');
+    const box = document.getElementById('employee-fields');
+    const sync = () => { box.hidden = !toggle.checked; };
+    toggle.addEventListener('change', sync);
+    sync();
+  })();
+</script>

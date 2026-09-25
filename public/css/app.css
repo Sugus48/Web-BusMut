@@ -48,6 +48,7 @@ h1 { font-size: 1.5rem; } h2 { font-size: 1.2rem; } h3 { font-size: 1.05rem; }
 p { margin: 0 0 var(--s3); }
 img { max-width: 100%; }
 :focus-visible { outline: 3px solid rgba(11, 79, 156, .45); outline-offset: 2px; }
+[hidden] { display: none !important; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .muted { color: var(--text-muted); }
 .small { font-size: .875rem; }
