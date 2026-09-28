@@ -2,7 +2,7 @@
 const db = require('../../db');
 const { SCREEN } = require('../../middleware/auth');
 const { fmtTime, addMinutes } = require('../../lib/helpers');
-const { refreshSchedule, dropSchedule } = require('../../lib/schedule');
+const { refreshSchedule, dropSchedule, RUN_DAYS, runDaysLabel } = require('../../lib/schedule');
 
 const count = async (sql, id) => (await db.one(sql, [id])).n;
 
@@ -42,7 +42,7 @@ const toMinutes = (t) => { const [h, m] = String(t).split(':').map(Number); retu
 async function scheduleConflicts(v, id) {
   if (String(v.active) !== '1') return {};
   const rows = await db.query(
-    `SELECT s.schedule_id, s.depart_time, s.vehicle_id, s.driver_id, r.route_name, rt.total_minutes
+    `SELECT s.schedule_id, s.depart_time, s.vehicle_id, s.driver_id, s.run_days, r.route_name, rt.total_minutes
        FROM trip_schedules s
        JOIN routes r ON r.route_id = s.route_id
        JOIN v_route_totals rt ON rt.route_id = s.route_id
@@ -54,6 +54,7 @@ async function scheduleConflicts(v, id) {
   const end = start + Math.max(1, route ? route.total_minutes : 0);
   const errors = {};
   for (const r of rows) {
+    if (![...String(v.run_days)].some((d) => String(r.run_days).includes(d))) continue; // ไม่มีวันวิ่งร่วมกัน
     const s = toMinutes(r.depart_time);
     if (!(s < end && start < s + Math.max(1, r.total_minutes))) continue;
     const range = `${r.schedule_id} ${r.route_name} ${fmtTime(r.depart_time)}–${addMinutes(r.depart_time, r.total_minutes)}`;
@@ -202,9 +203,9 @@ module.exports = {
   '/schedules': {
     screen: SCREEN.TRIPS,
     title: 'ตารางเวลาเดินรถ',
-    note: 'ระบบสร้างรอบการเดินรถของทุกวันล่วงหน้า 7 วันจากตารางนี้ — แก้ไขแล้วรอบที่ยังไม่มีคนจองจะเปลี่ยนตาม ส่วนรอบที่มีการจองแล้วแก้ได้ที่หน้ารอบการเดินรถ',
+    note: 'ระบบสร้างรอบการเดินรถล่วงหน้า 7 วันจากตารางนี้ เฉพาะวันที่ตรงกับวันที่วิ่ง — แก้ไขแล้วรอบที่ยังไม่มีคนจองจะเปลี่ยนตาม ส่วนรอบที่มีการจองแล้วแก้ได้ที่หน้ารอบการเดินรถ',
     table: 'trip_schedules', pk: 'schedule_id', prefix: 'TS', pad: 3,
-    listSql: `SELECT s.schedule_id, s.route_id, r.route_name, s.depart_time, s.vehicle_id, s.driver_id, s.active,
+    listSql: `SELECT s.schedule_id, s.route_id, r.route_name, s.depart_time, s.vehicle_id, s.driver_id, s.run_days, s.active,
                      ROW_NUMBER() OVER (PARTITION BY s.route_id ORDER BY s.depart_time) AS round_no,
                      v.plate_no, vt.type_name, vt.seat_count, u.name AS driver_name,
                      CASE WHEN s.active = 1 THEN 'ใช้งาน' ELSE 'หยุดใช้งาน' END AS active_label
@@ -223,6 +224,7 @@ module.exports = {
       { key: 'route_name', label: 'เส้นทาง' },
       { key: 'round_no', label: 'รอบที่', align: 'right' },
       { key: 'depart_time', label: 'เวลา', fmt: (r) => fmtTime(r.depart_time) },
+      { key: 'run_days', label: 'วันที่วิ่ง', fmt: (r) => runDaysLabel(r.run_days) },
       { key: 'driver_name', label: 'คนขับ' },
       { key: 'plate_no', label: 'รถ', fmt: (r) => `${r.plate_no} ${r.type_name} ${r.seat_count} ที่นั่ง` },
       { key: 'active_label', label: 'สถานะ', badge: true },
@@ -230,6 +232,7 @@ module.exports = {
     fields: [
       { name: 'route_id', label: 'เส้นทาง', type: 'select', required: true, options: routeOptions },
       { name: 'depart_time', label: 'เวลาออก', type: 'time', required: true },
+      { name: 'run_days', label: 'วันที่วิ่ง', type: 'select', required: true, options: RUN_DAYS },
       { name: 'driver_id', label: 'คนขับ', type: 'select', required: true, options: driverOptions },
       { name: 'vehicle_id', label: 'รถ', type: 'select', required: true, options: vehicleOptions,
         hint: 'รถที่ไม่อยู่ในสถานะพร้อมใช้งาน ระบบจะข้ามไม่สร้างรอบให้' },

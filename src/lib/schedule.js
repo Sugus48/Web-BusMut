@@ -1,5 +1,6 @@
 // สร้างรอบการเดินรถของแต่ละวันล่วงหน้าจากตารางเวลาเดินรถประจำ (trip_schedules)
 // - ข้ามวัน/ตารางเวลาที่มีรอบอยู่แล้ว (รวมรอบที่ถูกยกเลิก จึงไม่สร้างรอบที่ admin ยกเลิกกลับมา)
+// - สร้างเฉพาะวันที่ตรงกับวันที่วิ่งของตารางเวลา (run_days เช่น จันทร์–ศุกร์)
 // - สร้างครบทุกรอบของวันนี้แม้เลยเวลาออกแล้ว — คนขับเห็นงานทั้งวัน (การจองยังปิดตามกฎ 20 นาที)
 // - รถไม่พร้อมใช้งาน / รถหรือคนขับชนเวลา (trigger ปฏิเสธ) → ข้ามรอบนั้น
 const db = require('../db');
@@ -16,13 +17,28 @@ function addDays(date, n) {
   return `${x.getFullYear()}-${pad2(x.getMonth() + 1)}-${pad2(x.getDate())}`;
 }
 
+// 0 = อาทิตย์ … 6 = เสาร์ (ตรงกับ trip_schedules.run_days)
+function weekday(date) {
+  const [y, m, d] = date.split('-').map(Number);
+  return new Date(y, m - 1, d).getDay();
+}
+
+// ชุดวันที่วิ่งที่เลือกได้ในหน้าตารางเวลาเดินรถ
+const RUN_DAYS = [
+  { value: '12345', label: 'จันทร์–ศุกร์ (วันทำการ)' },
+  { value: '123456', label: 'จันทร์–เสาร์' },
+  { value: '0123456', label: 'ทุกวัน' },
+  { value: '06', label: 'เสาร์–อาทิตย์' },
+];
+const runDaysLabel = (v) => (RUN_DAYS.find((o) => o.value === String(v)) || { label: v }).label;
+
 async function generate(from, days) {
   const first = from < today() ? today() : from;
   const last = [addDays(from, days - 1), addDays(today(), MAX_DAYS)].sort()[0];
   if (first > last) return 0;
 
   const schedules = await db.query(
-    `SELECT schedule_id, route_id, depart_time, vehicle_id, driver_id
+    `SELECT schedule_id, route_id, depart_time, vehicle_id, driver_id, run_days
        FROM trip_schedules WHERE active = 1 ORDER BY depart_time, route_id`,
   );
   if (!schedules.length) return 0;
@@ -39,7 +55,9 @@ async function generate(from, days) {
 
   let created = 0;
   for (let date = first; date <= last; date = addDays(date, 1)) {
+    const day = String(weekday(date));
     for (const s of schedules) {
+      if (!String(s.run_days).includes(day)) continue;
       if (has.has(`${date}|${s.schedule_id}`) || has.has(`${date}|${s.route_id}|${s.depart_time}`)) continue;
       try {
         const id = await db.nextId('trips', 'trip_id', 'TR', 3);
@@ -87,4 +105,4 @@ const refreshSchedule = (scheduleId) => enqueue(async () => {
 // ก่อนลบตารางเวลา: ลบรอบล่วงหน้าที่ยังไม่มีคนจอง
 const dropSchedule = (scheduleId) => enqueue(() => removeUpcoming(scheduleId));
 
-module.exports = { ensureTrips, refreshSchedule, dropSchedule, MAX_DAYS };
+module.exports = { ensureTrips, refreshSchedule, dropSchedule, MAX_DAYS, RUN_DAYS, runDaysLabel };

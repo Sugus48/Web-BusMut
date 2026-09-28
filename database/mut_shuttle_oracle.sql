@@ -153,12 +153,14 @@ CREATE TABLE trip_schedules (
   depart_time VARCHAR2(8 CHAR)  NOT NULL,              -- 'HH24:MI:SS'
   vehicle_id  VARCHAR2(10 CHAR) NOT NULL,
   driver_id   VARCHAR2(10 CHAR) NOT NULL,
+  run_days    VARCHAR2(7 CHAR) DEFAULT '12345' NOT NULL, -- วันที่วิ่ง 0=อาทิตย์ … 6=เสาร์ ('12345' = จันทร์–ศุกร์)
   active      NUMBER(1) DEFAULT 1 NOT NULL,            -- 1 = ใช้งาน / 0 = หยุดใช้งาน
   CONSTRAINT pk_trip_schedules PRIMARY KEY (schedule_id),
   CONSTRAINT uq_sched_route_time UNIQUE (route_id, depart_time),
   CONSTRAINT fk_sched_route   FOREIGN KEY (route_id)   REFERENCES routes (route_id) ON DELETE CASCADE,
   CONSTRAINT fk_sched_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles (vehicle_id),
   CONSTRAINT fk_sched_driver  FOREIGN KEY (driver_id)  REFERENCES employees (user_id),
+  CONSTRAINT ck_sched_days CHECK (REGEXP_LIKE(run_days, '^[0-6]+$')),
   CONSTRAINT ck_sched_active CHECK (active IN (0, 1)),
   CONSTRAINT ck_sched_time CHECK (REGEXP_LIKE(depart_time, '^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$'))
 );
@@ -678,15 +680,15 @@ INSERT INTO route_stops (route_id, stop_order, stop_id, travel_minutes) VALUES (
 INSERT INTO route_stops (route_id, stop_order, stop_id, travel_minutes) VALUES ('R003', 4, 'S006', 5);
 INSERT INTO route_stops (route_id, stop_order, stop_id, travel_minutes) VALUES ('R003', 5, 'S001', 2);
 
--- ตารางเวลาเดินรถประจำตามเอกสาร MINI — รอบของแต่ละวันถูกสร้างอัตโนมัติจากตารางนี้
-INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, active) VALUES ('TS001', 'R001', '09:30:00', 'V001', 'U002', 1);
-INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, active) VALUES ('TS002', 'R001', '11:00:00', 'V001', 'U003', 1);
-INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, active) VALUES ('TS003', 'R001', '13:00:00', 'V002', 'U002', 1);
-INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, active) VALUES ('TS004', 'R001', '15:00:00', 'V002', 'U002', 1);
-INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, active) VALUES ('TS005', 'R002', '09:30:00', 'V003', 'U004', 1);
-INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, active) VALUES ('TS006', 'R002', '11:00:00', 'V003', 'U004', 1);
-INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, active) VALUES ('TS007', 'R002', '13:00:00', 'V003', 'U003', 1);
-INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, active) VALUES ('TS008', 'R002', '15:00:00', 'V003', 'U003', 1);
+-- ตารางเวลาเดินรถประจำตามเอกสาร MINI — วิ่งเฉพาะวันทำการ (จันทร์–ศุกร์) รอบของแต่ละวันถูกสร้างอัตโนมัติจากตารางนี้
+INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, run_days, active) VALUES ('TS001', 'R001', '09:30:00', 'V001', 'U002', '12345', 1);
+INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, run_days, active) VALUES ('TS002', 'R001', '11:00:00', 'V001', 'U003', '12345', 1);
+INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, run_days, active) VALUES ('TS003', 'R001', '13:00:00', 'V002', 'U002', '12345', 1);
+INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, run_days, active) VALUES ('TS004', 'R001', '15:00:00', 'V002', 'U002', '12345', 1);
+INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, run_days, active) VALUES ('TS005', 'R002', '09:30:00', 'V003', 'U004', '12345', 1);
+INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, run_days, active) VALUES ('TS006', 'R002', '11:00:00', 'V003', 'U004', '12345', 1);
+INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, run_days, active) VALUES ('TS007', 'R002', '13:00:00', 'V003', 'U003', '12345', 1);
+INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, run_days, active) VALUES ('TS008', 'R002', '15:00:00', 'V003', 'U003', '12345', 1);
 
 COMMIT;
 

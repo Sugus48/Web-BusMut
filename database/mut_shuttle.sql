@@ -132,12 +132,14 @@ CREATE TABLE trip_schedules (
   depart_time TIME        NOT NULL,                    -- เวลาออก
   vehicle_id  VARCHAR(10) NOT NULL,                    -- รหัสรถ (FK)
   driver_id   VARCHAR(10) NOT NULL,                    -- คนขับ (FK)
+  run_days    VARCHAR(7)  NOT NULL DEFAULT '12345',    -- วันที่วิ่ง 0=อาทิตย์ … 6=เสาร์ ('12345' = จันทร์–ศุกร์)
   active      TINYINT(1)  NOT NULL DEFAULT 1,          -- 1 = ใช้งาน / 0 = หยุดใช้งาน
   PRIMARY KEY (schedule_id),
   UNIQUE KEY uq_sched_route_time (route_id, depart_time),
   CONSTRAINT fk_sched_route   FOREIGN KEY (route_id)   REFERENCES routes (route_id) ON DELETE CASCADE,
   CONSTRAINT fk_sched_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles (vehicle_id),
   CONSTRAINT fk_sched_driver  FOREIGN KEY (driver_id)  REFERENCES employees (user_id),
+  CONSTRAINT ck_sched_days CHECK (run_days REGEXP '^[0-6]+$'),
   CONSTRAINT ck_sched_active CHECK (active IN (0,1))
 ) ENGINE=InnoDB COMMENT='ตารางเวลาเดินรถประจำ';
 
@@ -667,16 +669,16 @@ INSERT INTO route_stops (route_id, stop_order, stop_id, travel_minutes) VALUES
   ('R003', 4, 'S006', 5),
   ('R003', 5, 'S001', 2);
 
--- ตารางเวลาเดินรถประจำตามเอกสาร MINI — รอบของแต่ละวันถูกสร้างอัตโนมัติจากตารางนี้
-INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, active) VALUES
-  ('TS001', 'R001', '09:30:00', 'V001', 'U002', 1),
-  ('TS002', 'R001', '11:00:00', 'V001', 'U003', 1),
-  ('TS003', 'R001', '13:00:00', 'V002', 'U002', 1),
-  ('TS004', 'R001', '15:00:00', 'V002', 'U002', 1),
-  ('TS005', 'R002', '09:30:00', 'V003', 'U004', 1),
-  ('TS006', 'R002', '11:00:00', 'V003', 'U004', 1),
-  ('TS007', 'R002', '13:00:00', 'V003', 'U003', 1),
-  ('TS008', 'R002', '15:00:00', 'V003', 'U003', 1);
+-- ตารางเวลาเดินรถประจำตามเอกสาร MINI — วิ่งเฉพาะวันทำการ (จันทร์–ศุกร์) รอบของแต่ละวันถูกสร้างอัตโนมัติจากตารางนี้
+INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, run_days, active) VALUES
+  ('TS001', 'R001', '09:30:00', 'V001', 'U002', '12345', 1),
+  ('TS002', 'R001', '11:00:00', 'V001', 'U003', '12345', 1),
+  ('TS003', 'R001', '13:00:00', 'V002', 'U002', '12345', 1),
+  ('TS004', 'R001', '15:00:00', 'V002', 'U002', '12345', 1),
+  ('TS005', 'R002', '09:30:00', 'V003', 'U004', '12345', 1),
+  ('TS006', 'R002', '11:00:00', 'V003', 'U004', '12345', 1),
+  ('TS007', 'R002', '13:00:00', 'V003', 'U003', '12345', 1),
+  ('TS008', 'R002', '15:00:00', 'V003', 'U003', '12345', 1);
 
 
 -- =====================================================================
