@@ -25,7 +25,7 @@
   </div>
   <div class="field">
     <label for="date">วันที่เดินรถ</label>
-    <input class="input" type="date" id="date" name="date" value="<%= date %>" min="<%= minDate %>" required>
+    <input class="input" type="date" id="date" name="date" value="<%= date %>" min="<%= minDate %>" max="<%= maxDate %>" required>
   </div>
   <button class="btn btn-primary btn-block" type="submit"><%- include('../partials/icon', { name: 'search' }) %> ค้นหา</button>
 </form>

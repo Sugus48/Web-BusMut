@@ -5,6 +5,7 @@ const session = require('express-session');
 const helpers = require('./lib/helpers');
 const db = require('./db');
 const { attachUser } = require('./middleware/auth');
+const { ensureTrips } = require('./lib/schedule');
 
 const app = express();
 const ROOT = path.join(__dirname, '..');
@@ -67,7 +68,16 @@ app.use((err, req, res, next) => {
   }
 });
 
+// สร้างรอบการเดินรถล่วงหน้าจากตารางเวลาเดินรถ ตอนเปิดเว็บและทุกชั่วโมง
+function scheduleTrips() {
+  ensureTrips()
+    .then((n) => { if (n) console.log(`สร้างรอบการเดินรถจากตารางเวลา ${n} รอบ`); })
+    .catch((err) => console.error('สร้างรอบการเดินรถจากตารางเวลาไม่สำเร็จ:', db.errorMessage(err), err.message));
+}
+
 const port = Number(process.env.PORT || 3000);
 app.listen(port, () => {
   console.log(`MUT Shuttle running at http://localhost:${port}`);
+  scheduleTrips();
+  setInterval(scheduleTrips, 60 * 60 * 1000).unref();
 });

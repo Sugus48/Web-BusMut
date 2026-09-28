@@ -34,6 +34,7 @@ const ADMIN_MENU = [
     { label: 'รถ', href: '/admin/vehicles', screen: SCREEN.VEHICLES },
     { label: 'จุดจอด', href: '/admin/stops', screen: SCREEN.STOPS },
     { label: 'เส้นทาง', href: '/admin/routes', screen: SCREEN.ROUTES },
+    { label: 'ตารางเวลาเดินรถ', href: '/admin/schedules', screen: SCREEN.TRIPS },
     { label: 'รอบการเดินรถ', href: '/admin/trips', screen: SCREEN.TRIPS },
   ] },
   { group: 'การจอง', items: [

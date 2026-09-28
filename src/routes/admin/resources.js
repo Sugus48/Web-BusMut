@@ -1,6 +1,8 @@
 // การตั้งค่าหน้าจัดการข้อมูลหลักที่ใช้ crud.js
 const db = require('../../db');
 const { SCREEN } = require('../../middleware/auth');
+const { fmtTime, addMinutes } = require('../../lib/helpers');
+const { refreshSchedule, dropSchedule } = require('../../lib/schedule');
 
 const count = async (sql, id) => (await db.one(sql, [id])).n;
 
@@ -16,6 +18,50 @@ const syncTripSeats = () => db.query(
 const VEHICLE_STATUS = ['พร้อมใช้งาน', 'ซ่อมบำรุง', 'ไม่พร้อมใช้งาน'].map((s) => ({ value: s, label: s }));
 const vehicleTypeOptions = async () => (await db.query('SELECT vehicle_type_id, type_name, seat_count FROM vehicle_types ORDER BY vehicle_type_id'))
   .map((t) => ({ value: t.vehicle_type_id, label: `${t.type_name} (${t.seat_count} ที่นั่ง)` }));
+
+const routeOptions = async () => (await db.query('SELECT route_id, route_name, total_minutes FROM v_route_totals ORDER BY route_id'))
+  .map((r) => ({ value: r.route_id, label: `${r.route_name} (${r.total_minutes} นาที)` }));
+const vehicleOptions = async () => (await db.query(
+  `SELECT v.vehicle_id, v.plate_no, v.status, vt.type_name, vt.seat_count
+     FROM vehicles v JOIN vehicle_types vt ON vt.vehicle_type_id = v.vehicle_type_id ORDER BY v.plate_no`,
+)).map((v) => ({
+  value: v.vehicle_id,
+  label: `${v.plate_no} ${v.type_name} ${v.seat_count} ที่นั่ง${v.status === 'พร้อมใช้งาน' ? '' : ` (${v.status})`}`,
+}));
+// คนขับ = พนักงานที่ตำแหน่งมีสิทธิ์หน้าจองานคนขับ (เหมือนหน้าจัดรอบ)
+const driverOptions = async () => (await db.query(
+  `SELECT u.user_id, u.name FROM employees e JOIN users u ON u.user_id = e.user_id
+    WHERE e.position_id IN (SELECT position_id FROM permissions WHERE screen_id = ?) ORDER BY u.name`,
+  [SCREEN.DRIVER],
+)).map((u) => ({ value: u.user_id, label: u.name }));
+const ACTIVE = [{ value: '1', label: 'ใช้งาน' }, { value: '0', label: 'หยุดใช้งาน' }];
+
+const toMinutes = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
+
+// ตารางเวลาที่ใช้งานอยู่ซึ่งใช้รถ/คนขับเดียวกันในช่วงเวลาทับกัน
+async function scheduleConflicts(v, id) {
+  if (String(v.active) !== '1') return {};
+  const rows = await db.query(
+    `SELECT s.schedule_id, s.depart_time, s.vehicle_id, s.driver_id, r.route_name, rt.total_minutes
+       FROM trip_schedules s
+       JOIN routes r ON r.route_id = s.route_id
+       JOIN v_route_totals rt ON rt.route_id = s.route_id
+      WHERE s.active = 1 AND s.schedule_id <> ?`,
+    [id || '-'], // Oracle ถือ '' = NULL จึงใช้ '-' แทน
+  );
+  const route = await db.one('SELECT total_minutes FROM v_route_totals WHERE route_id = ?', [v.route_id]);
+  const start = toMinutes(v.depart_time);
+  const end = start + Math.max(1, route ? route.total_minutes : 0);
+  const errors = {};
+  for (const r of rows) {
+    const s = toMinutes(r.depart_time);
+    if (!(s < end && start < s + Math.max(1, r.total_minutes))) continue;
+    const range = `${r.schedule_id} ${r.route_name} ${fmtTime(r.depart_time)}–${addMinutes(r.depart_time, r.total_minutes)}`;
+    if (r.vehicle_id === v.vehicle_id && !errors.vehicle_id) errors.vehicle_id = `รถคันนี้ถูกใช้ในตารางเวลา ${range}`;
+    if (r.driver_id === v.driver_id && !errors.driver_id) errors.driver_id = `คนขับคนนี้มีงานในตารางเวลา ${range}`;
+  }
+  return errors;
+}
 
 module.exports = {
   // 10.3 แผนก
@@ -150,6 +196,52 @@ module.exports = {
       const n = await count('SELECT COUNT(*) AS n FROM trips WHERE vehicle_id = ?', id);
       return n ? `ลบไม่ได้ เนื่องจากรถคันนี้ถูกใช้ใน ${n} รอบ — เปลี่ยนสถานะเป็น "ไม่พร้อมใช้งาน" แทน` : null;
     },
+  },
+
+  // ตารางเวลาเดินรถประจำ — ระบบสร้างรอบของแต่ละวันล่วงหน้าจากตารางนี้
+  '/schedules': {
+    screen: SCREEN.TRIPS,
+    title: 'ตารางเวลาเดินรถ',
+    note: 'ระบบสร้างรอบการเดินรถของทุกวันล่วงหน้า 7 วันจากตารางนี้ — แก้ไขแล้วรอบที่ยังไม่มีคนจองจะเปลี่ยนตาม ส่วนรอบที่มีการจองแล้วแก้ได้ที่หน้ารอบการเดินรถ',
+    table: 'trip_schedules', pk: 'schedule_id', prefix: 'TS', pad: 3,
+    listSql: `SELECT s.schedule_id, s.route_id, r.route_name, s.depart_time, s.vehicle_id, s.driver_id, s.active,
+                     ROW_NUMBER() OVER (PARTITION BY s.route_id ORDER BY s.depart_time) AS round_no,
+                     v.plate_no, vt.type_name, vt.seat_count, u.name AS driver_name,
+                     CASE WHEN s.active = 1 THEN 'ใช้งาน' ELSE 'หยุดใช้งาน' END AS active_label
+                FROM trip_schedules s
+                JOIN routes r         ON r.route_id = s.route_id
+                JOIN vehicles v       ON v.vehicle_id = s.vehicle_id
+                JOIN vehicle_types vt ON vt.vehicle_type_id = v.vehicle_type_id
+                JOIN users u          ON u.user_id = s.driver_id`,
+    orderBy: 'x.route_id, x.depart_time',
+    filters: [
+      { name: 'route_id', label: 'เส้นทาง', options: routeOptions },
+      { name: 'driver_id', label: 'คนขับ', options: driverOptions },
+    ],
+    columns: [
+      { key: 'schedule_id', label: 'รหัส' },
+      { key: 'route_name', label: 'เส้นทาง' },
+      { key: 'round_no', label: 'รอบที่', align: 'right' },
+      { key: 'depart_time', label: 'เวลา', fmt: (r) => fmtTime(r.depart_time) },
+      { key: 'driver_name', label: 'คนขับ' },
+      { key: 'plate_no', label: 'รถ', fmt: (r) => `${r.plate_no} ${r.type_name} ${r.seat_count} ที่นั่ง` },
+      { key: 'active_label', label: 'สถานะ', badge: true },
+    ],
+    fields: [
+      { name: 'route_id', label: 'เส้นทาง', type: 'select', required: true, options: routeOptions },
+      { name: 'depart_time', label: 'เวลาออก', type: 'time', required: true },
+      { name: 'driver_id', label: 'คนขับ', type: 'select', required: true, options: driverOptions },
+      { name: 'vehicle_id', label: 'รถ', type: 'select', required: true, options: vehicleOptions,
+        hint: 'รถที่ไม่อยู่ในสถานะพร้อมใช้งาน ระบบจะข้ามไม่สร้างรอบให้' },
+      { name: 'active', label: 'สถานะ', type: 'select', required: true, options: ACTIVE,
+        hint: 'หยุดใช้งาน = ไม่สร้างรอบใหม่ และลบรอบล่วงหน้าที่ยังไม่มีคนจอง' },
+    ],
+    check: scheduleConflicts,
+    unique: { depart_time: 'เส้นทางนี้มีรอบเวลานี้อยู่แล้ว' },
+    nameOf: (r) => `${r.route_name} ${fmtTime(r.depart_time)}`,
+    afterSave: refreshSchedule,
+    deleteWarning: 'รอบล่วงหน้าที่ยังไม่มีคนจองจะถูกลบด้วย',
+    beforeDelete: async (id) => { await dropSchedule(id); return null; },
   },
 
   // 10.9 จุดจอด

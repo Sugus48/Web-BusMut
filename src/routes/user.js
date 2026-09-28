@@ -4,6 +4,7 @@ const db = require('../db');
 const { requireLogin } = require('../middleware/auth');
 const { ITEM_SELECT, getTrip, getTripStops, segment, routeSequences } = require('../lib/queries');
 const { today, qs } = require('../lib/helpers');
+const { ensureTrips, MAX_DAYS } = require('../lib/schedule');
 const { verifyPassword, hashPassword } = require('../lib/password');
 
 const router = express.Router();
@@ -41,11 +42,16 @@ router.get('/search', async (req, res) => {
   if (req.query.board !== undefined) {
     if (!board || !alight) error = 'กรุณาเลือกจุดขึ้นและจุดลง';
     else if (board === alight) error = 'จุดขึ้นและจุดลงต้องไม่ใช่จุดเดียวกัน';
+    else if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) error = 'กรุณาเลือกวันที่';
     else if (date < today()) error = 'ไม่สามารถค้นหารอบของวันที่ผ่านมาแล้ว';
-    else results = await db.proc.searchTrips(date, board, alight);
+    else if (date > today(MAX_DAYS)) error = `ค้นหาล่วงหน้าได้ไม่เกิน ${MAX_DAYS} วัน`;
+    else {
+      await ensureTrips(date, 1); // วันที่ไกลกว่าที่สร้างไว้ล่วงหน้า → สร้างจากตารางเวลาให้ก่อน
+      results = await db.proc.searchTrips(date, board, alight);
+    }
   }
   res.page('user/search', {
-    title: 'ค้นหารอบรถ', stops, sequences, board, alight, date, minDate: today(), results, error,
+    title: 'ค้นหารอบรถ', stops, sequences, board, alight, date, minDate: today(), maxDate: today(MAX_DAYS), results, error,
   });
 });
 

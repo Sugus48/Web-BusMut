@@ -124,6 +124,23 @@ CREATE TABLE route_stops (
   CONSTRAINT ck_rs_minutes CHECK (travel_minutes >= 0)
 ) ENGINE=InnoDB COMMENT='เส้นทาง_จุดจอด';
 
+-- 16. ตารางเวลาเดินรถประจำ — ระบบสร้างรอบการเดินรถของแต่ละวันล่วงหน้าจากตารางนี้ (src/lib/schedule.js)
+--     "รอบที่" = ลำดับเวลาออกภายในเส้นทาง (ไม่ได้เก็บ)
+CREATE TABLE trip_schedules (
+  schedule_id VARCHAR(10) NOT NULL,                    -- รหัสตารางเวลา (PK)
+  route_id    VARCHAR(10) NOT NULL,                    -- รหัสเส้นทาง (FK)
+  depart_time TIME        NOT NULL,                    -- เวลาออก
+  vehicle_id  VARCHAR(10) NOT NULL,                    -- รหัสรถ (FK)
+  driver_id   VARCHAR(10) NOT NULL,                    -- คนขับ (FK)
+  active      TINYINT(1)  NOT NULL DEFAULT 1,          -- 1 = ใช้งาน / 0 = หยุดใช้งาน
+  PRIMARY KEY (schedule_id),
+  UNIQUE KEY uq_sched_route_time (route_id, depart_time),
+  CONSTRAINT fk_sched_route   FOREIGN KEY (route_id)   REFERENCES routes (route_id) ON DELETE CASCADE,
+  CONSTRAINT fk_sched_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles (vehicle_id),
+  CONSTRAINT fk_sched_driver  FOREIGN KEY (driver_id)  REFERENCES employees (user_id),
+  CONSTRAINT ck_sched_active CHECK (active IN (0,1))
+) ENGINE=InnoDB COMMENT='ตารางเวลาเดินรถประจำ';
+
 -- 11. รอบการเดินรถ
 CREATE TABLE trips (
   trip_id     VARCHAR(10) NOT NULL,                    -- รหัสรอบการเดินรถ (PK)
@@ -134,11 +151,14 @@ CREATE TABLE trips (
   vehicle_id  VARCHAR(10) NOT NULL,                    -- รหัสรถ (FK)
   route_id    VARCHAR(10) NOT NULL,                    -- รหัสเส้นทาง (FK)
   driver_id   VARCHAR(10) NOT NULL,                    -- คนขับ = รหัสผู้ใช้งานของพนักงาน (FK) ตาม ER
+  schedule_id VARCHAR(10) NULL,                        -- สร้างจากตารางเวลาใด (FK, NULL = จัดรอบเอง)
   PRIMARY KEY (trip_id),
   KEY ix_trips_date (trip_date, depart_time),
-  CONSTRAINT fk_trips_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles (vehicle_id),
-  CONSTRAINT fk_trips_route   FOREIGN KEY (route_id)   REFERENCES routes (route_id),
-  CONSTRAINT fk_trips_driver  FOREIGN KEY (driver_id)  REFERENCES employees (user_id)
+  KEY ix_trips_schedule (schedule_id, trip_date),
+  CONSTRAINT fk_trips_vehicle  FOREIGN KEY (vehicle_id)  REFERENCES vehicles (vehicle_id),
+  CONSTRAINT fk_trips_route    FOREIGN KEY (route_id)    REFERENCES routes (route_id),
+  CONSTRAINT fk_trips_driver   FOREIGN KEY (driver_id)   REFERENCES employees (user_id),
+  CONSTRAINT fk_trips_schedule FOREIGN KEY (schedule_id) REFERENCES trip_schedules (schedule_id) ON DELETE SET NULL
 ) ENGINE=InnoDB COMMENT='รอบการเดินรถ';
 
 -- 14. การจอง
@@ -574,13 +594,18 @@ INSERT INTO screens VALUES
   ('SC12', 'งานคนขับ');
 
 -- password ตัวอย่าง = '1234' (ในระบบจริงให้ hash ด้วย bcrypt/argon2 ที่ฝั่งแอป)
+-- U001 = ผู้ดูแลระบบ / U002–U004 = คนขับตามเอกสาร MINI
 INSERT INTO users VALUES
-  ('U001', 'สมชาย', 'somchai@mail.com', 'somchai', SHA2('1234', 256), 'D001'),
-  ('U002', 'สมหญิง', 'somying@mail.com', 'somying', SHA2('1234', 256), 'D002');
+  ('U001', 'ผู้ดูแลระบบ', 'admin@mail.com',   'admin',   SHA2('1234', 256), 'D001'),
+  ('U002', 'สมชาย ใจดี',  'somchai@mail.com', 'somchai', SHA2('1234', 256), 'D002'),
+  ('U003', 'สมหญิง ใจรัก', 'somying@mail.com', 'somying', SHA2('1234', 256), 'D002'),
+  ('U004', 'สมควร ใจงาม', 'somkuan@mail.com', 'somkuan', SHA2('1234', 256), 'D002');
 
 INSERT INTO employees VALUES
   ('U001', '0811111111', 'P01'),
-  ('U002', '0822222222', 'P02');
+  ('U002', '0822222222', 'P02'),
+  ('U003', '0833333333', 'P02'),
+  ('U004', '0844444444', 'P02');
 
 -- PR001, PR002 ตาม Mapping / PR003–PR013 = Admin เข้าถึงทุกหน้าจอ
 INSERT INTO permissions VALUES
@@ -598,25 +623,32 @@ INSERT INTO permissions VALUES
   ('PR012', 1, 1, 1, 'P01', 'SC11'),
   ('PR013', 0, 1, 0, 'P02', 'SC12');
 
+-- ประเภทรถ/รถตามเอกสาร MINI
 INSERT INTO vehicle_types VALUES
-  ('T01', 'รถตู้', 'รถโดยสารขนาดเล็ก', 12),
-  ('T02', 'รถบัส', 'รถโดยสารขนาดใหญ่', 40);
+  ('T01', 'รถตู้', 'รถโดยสารขนาดเล็ก', 9),
+  ('T02', 'รถบัส', 'รถโดยสารขนาดใหญ่', 20);
 
 INSERT INTO vehicles VALUES
-  ('V001', 'กข 1234', 'พร้อมใช้งาน', 'T01'),
-  ('V002', 'ขค 5678', 'พร้อมใช้งาน', 'T02');
+  ('V001', 'สย 2591', 'พร้อมใช้งาน', 'T01'),
+  ('V002', 'บก 1130', 'พร้อมใช้งาน', 'T02'),
+  ('V003', 'สย 2599', 'พร้อมใช้งาน', 'T01');
 
 INSERT INTO routes VALUES
-  ('R001', 'เส้นทาง 1');
+  ('R001', 'เส้นทาง 1'),
+  ('R002', 'เส้นทาง 2'),
+  ('R003', 'เส้นทาง 3');
 
 -- จุดจอดตามเอกสาร MINI
 INSERT INTO stops VALUES
   ('S001', 'มหาวิทยาลัยเทคโนโลยีมหานคร'),
   ('S002', 'โลตัสหนองจอก'),
   ('S003', 'โรงพยาบาลหนองจอก'),
-  ('S004', 'Big C หนองจอก');
+  ('S004', 'Big C หนองจอก'),
+  ('S005', 'สวนสาธารณหนองจอก'),
+  ('S006', 'ร้านส้มตำป้านาง');
 
--- ลำดับจุดจอดและเวลาเดินทางตามเอกสาร MINI (เวลารวม 30 นาที)
+-- ลำดับจุดจอดและเวลาเดินทางตามเอกสาร MINI
+-- เส้นทาง 1 = 30 นาที / เส้นทาง 2 = 13 นาที / เส้นทาง 3 = 15 นาที (เอกสารเขียน 12 แต่ 5+3+5+2 = 15)
 INSERT INTO route_stops (route_id, stop_order, stop_id, travel_minutes) VALUES
   ('R001', 1, 'S001', 0),
   ('R001', 2, 'S002', 5),
@@ -624,21 +656,27 @@ INSERT INTO route_stops (route_id, stop_order, stop_id, travel_minutes) VALUES
   ('R001', 4, 'S004', 6),
   ('R001', 5, 'S003', 3),
   ('R001', 6, 'S002', 3),
-  ('R001', 7, 'S001', 10);
+  ('R001', 7, 'S001', 10),
+  ('R002', 1, 'S001', 0),
+  ('R002', 2, 'S002', 5),
+  ('R002', 3, 'S005', 3),
+  ('R002', 4, 'S006', 5),
+  ('R003', 1, 'S004', 0),
+  ('R003', 2, 'S002', 5),
+  ('R003', 3, 'S005', 3),
+  ('R003', 4, 'S006', 5),
+  ('R003', 5, 'S001', 2);
 
--- seat_count ถูกเติมโดย trigger จากประเภทรถ
-INSERT INTO trips (trip_id, trip_date, depart_time, status, vehicle_id, route_id, driver_id) VALUES
-  ('TR001', '2026-09-24', '08:00:00', 'เปิด', 'V001', 'R001', 'U002'),
-  ('TR002', '2026-09-24', '13:00:00', 'เปิด', 'V002', 'R001', 'U002');
-
-INSERT INTO bookings VALUES
-  ('B001', '2026-09-23 09:30:00', 'U001'),
-  ('B002', '2026-09-24 10:00:00', 'U002');
-
-INSERT INTO booking_items
-  (booking_item_id, qr_code, status, seats, checkin_at, booking_id, trip_id, board_stop_id, alight_stop_id) VALUES
-  ('BD001', 'QR001', 'ยืนยัน', 1, '2026-09-24 07:45:00', 'B001', 'TR001', 'S001', 'S003'),
-  ('BD002', 'QR002', 'ยืนยัน', 2, '2026-09-24 12:40:00', 'B002', 'TR002', 'S002', 'S003');
+-- ตารางเวลาเดินรถประจำตามเอกสาร MINI — รอบของแต่ละวันถูกสร้างอัตโนมัติจากตารางนี้
+INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, active) VALUES
+  ('TS001', 'R001', '09:30:00', 'V001', 'U002', 1),
+  ('TS002', 'R001', '11:00:00', 'V001', 'U003', 1),
+  ('TS003', 'R001', '13:00:00', 'V002', 'U002', 1),
+  ('TS004', 'R001', '15:00:00', 'V002', 'U002', 1),
+  ('TS005', 'R002', '09:30:00', 'V003', 'U004', 1),
+  ('TS006', 'R002', '11:00:00', 'V003', 'U004', 1),
+  ('TS007', 'R002', '13:00:00', 'V003', 'U003', 1),
+  ('TS008', 'R002', '15:00:00', 'V003', 'U003', 1);
 
 
 -- =====================================================================

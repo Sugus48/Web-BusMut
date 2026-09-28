@@ -12,12 +12,14 @@ const resolve = async (opts) => (typeof opts === 'function' ? opts() : opts || [
  *   searchCols,         คอลัมน์ที่ค้นหาด้วยช่อง q
  *   filters,            [{ name, label, options }] กรองด้วยค่าเท่ากับ
  *   columns,            [{ key, label, badge?, fmt?(row), align? }]
- *   fields,             [{ name, label, type: text|number|textarea|select, required?, max?, min?, options?, hint? }]
+ *   fields,             [{ name, label, type: text|number|textarea|select|time, required?, max?, min?, options?, hint? }]
+ *   orderBy,            ลำดับรายการ (คอลัมน์ของ x) ค่าเริ่มต้น = pk
+ *   check(values, id),  ตรวจเพิ่มเติม คืน { field: ข้อความ }
  *   unique,             { field: ข้อความ } ใช้เมื่อชน UNIQUE (errno 1062)
  *   rowLinks,           [{ label, href(row), screen? }]
  *   beforeDelete(id),   คืนข้อความถ้าห้ามลบ
  *   deleteWarning,      ข้อความเพิ่มเติมใน Confirmation
- *   afterSave(),        เรียกหลังบันทึก
+ *   afterSave(id),      เรียกหลังบันทึก
  *   note,               ข้อความใต้หัวข้อ
  * }
  */
@@ -52,6 +54,10 @@ function crud(cfg) {
         v = n;
       }
       if (f.type === 'select' && !f.options.some((o) => String(o.value) === v)) errors[f.name] = `กรุณาเลือก${f.label}`;
+      if (f.type === 'time') {
+        if (!/^\d{2}:\d{2}(:\d{2})?$/.test(v)) errors[f.name] = `กรุณาระบุ${f.label}`;
+        else v = `${v.slice(0, 5)}:00`;
+      }
       values[f.name] = v;
     }
     return { values, errors };
@@ -78,7 +84,7 @@ function crud(cfg) {
       if (req.query[f.name]) { where.push(`x.${f.name} = ?`); params.push(req.query[f.name]); }
     }
     const rows = await db.query(
-      `SELECT * FROM (${cfg.listSql}) x ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY x.${cfg.pk}`,
+      `SELECT * FROM (${cfg.listSql}) x ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY ${cfg.orderBy || `x.${cfg.pk}`}`,
       params,
     );
     res.page('admin/crud-list', { title: cfg.title, cfg, base: req.baseUrl, rows, q, filters });
@@ -88,11 +94,12 @@ function crud(cfg) {
 
   router.post('/', requirePerm(cfg.screen, 'add'), async (req, res) => {
     const { values, errors } = await validate(req.body);
+    if (!Object.keys(errors).length && cfg.check) Object.assign(errors, await cfg.check(values, null));
     if (!Object.keys(errors).length) {
       try {
         const id = await db.nextId(cfg.table, cfg.pk, cfg.prefix, cfg.pad);
         await db.insert(cfg.table, { [cfg.pk]: id, ...values });
-        if (cfg.afterSave) await cfg.afterSave();
+        if (cfg.afterSave) await cfg.afterSave(id);
         req.flash('success', `เพิ่ม${cfg.title} ${id} เรียบร้อยแล้ว`);
         return res.redirect(req.baseUrl);
       } catch (err) {
@@ -112,10 +119,11 @@ function crud(cfg) {
     const exists = await db.one(`SELECT 1 AS ok FROM ${cfg.table} WHERE ${cfg.pk} = ?`, [req.params.id]);
     if (!exists) return next();
     const { values, errors } = await validate(req.body);
+    if (!Object.keys(errors).length && cfg.check) Object.assign(errors, await cfg.check(values, req.params.id));
     if (!Object.keys(errors).length) {
       try {
         await db.update(cfg.table, values, { [cfg.pk]: req.params.id });
-        if (cfg.afterSave) await cfg.afterSave();
+        if (cfg.afterSave) await cfg.afterSave(req.params.id);
         req.flash('success', `บันทึก${cfg.title} ${req.params.id} เรียบร้อยแล้ว`);
         return res.redirect(req.baseUrl);
       } catch (err) {

@@ -50,6 +50,8 @@ const BADGE = {
   'ซ่อมบำรุง': 'warning',
   'ไม่พร้อมใช้งาน': 'danger',
   'ที่นั่งเต็ม': 'danger',
+  'ใช้งาน': 'success',
+  'หยุดใช้งาน': 'neutral',
 };
 
 function badge(status) {

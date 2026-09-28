@@ -22,6 +22,9 @@
           <option value="">— เลือก<%= f.label %> —</option>
           <% f.options.forEach((o) => { %><option value="<%= o.value %>" <%= String(v) === String(o.value) ? 'selected' : '' %>><%= o.label %></option><% }) %>
         </select>
+      <% } else if (f.type === 'time') { %>
+        <input class="input <%= err ? 'is-invalid' : '' %>" id="<%= f.name %>" name="<%= f.name %>" type="time"
+               value="<%= String(v).slice(0, 5) %>" <%= f.required ? 'required' : '' %> <%- aria %>>
       <% } else if (f.type === 'textarea') { %>
         <textarea class="input <%= err ? 'is-invalid' : '' %>" id="<%= f.name %>" name="<%= f.name %>" <%= f.max ? `maxlength=${f.max}` : '' %> <%- aria %>><%= v %></textarea>
       <% } else { %>
