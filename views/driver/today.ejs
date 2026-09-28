@@ -6,7 +6,7 @@
 <% if (!trips.length) { %>
   <div class="card empty">
     <strong>วันนี้ไม่มีรอบที่ได้รับมอบหมาย</strong>
-    ดูรอบที่ผ่านมาได้ที่เมนูประวัติ
+    <%= upcoming.length ? 'ดูงานที่จะถึงด้านล่าง' : 'ดูรอบที่ผ่านมาได้ที่เมนูประวัติ' %>
   </div>
 <% } %>
 
@@ -25,3 +25,22 @@
     <div class="small muted mt-2">สถานะรอบ: <%= t.status %> (<%= sub %>)</div>
   </a>
 <% }) %>
+
+<% if (upcoming.length) { %>
+  <h2 class="section-title mt-4">งานที่จะถึง (7 วัน)</h2>
+  <% let lastDate = null;
+     upcoming.forEach((t) => {
+       if (t.trip_date !== lastDate) { lastDate = t.trip_date; %>
+    <h3 class="small muted mt-2 mb-0"><%= fmtDate(t.trip_date) %></h3>
+  <%   } %>
+  <a class="card card-link trip-card" href="/driver/trips/<%= t.trip_id %>">
+    <div class="row-between">
+      <span class="row"><span class="time" style="font-weight:700"><%= fmtTime(t.depart_time) %></span> <strong><%= t.route_name %></strong></span>
+      <span class="small muted">จองแล้ว <b><%= t.booked_seats %></b> / <%= t.seat_count %></span>
+    </div>
+    <div class="meta">
+      <span>รถ: <%= t.plate_no %> (<%= t.type_name %>)</span>
+      <span>ถึงปลายทาง <%= fmtTime(t.end_at) %></span>
+    </div>
+  </a>
+<% }) } %>

@@ -1,4 +1,4 @@
-<a class="back-link" href="<%= trip.trip_date === today() ? '/driver' : '/driver/history' %>"><%- include('../partials/icon', { name: 'back' }) %> กลับ</a>
+<a class="back-link" href="<%= trip.trip_date >= today() ? '/driver' : '/driver/history' %>"><%- include('../partials/icon', { name: 'back' }) %> กลับ</a>
 
 <div class="page-head row-between">
   <div>
@@ -15,7 +15,9 @@
 </div>
 
 <div class="stack mb-4">
-  <% if (trip.status === 'เปิด') { %>
+  <% if (trip.status === 'เปิด' && trip.trip_date > today()) { %>
+    <div class="alert alert-info">รอบล่วงหน้า — กดเริ่มการเดินทางและสแกน QR ได้ในวันที่ <%= fmtDate(trip.trip_date) %></div>
+  <% } else if (trip.status === 'เปิด') { %>
     <form method="post" action="/driver/trips/<%= trip.trip_id %>/start"
           data-confirm-title="เริ่มการเดินทางรอบ <%= fmtTime(trip.depart_time) %>?"
           data-confirm="สถานะรอบจะเปลี่ยนเป็น กำลังเดินทาง และเริ่มสแกน QR ได้"

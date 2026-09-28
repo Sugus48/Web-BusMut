@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../db');
 const { requireLogin, requireScreen, denied, SCREEN } = require('../middleware/auth');
 const { TRIP_SELECT, getTrip } = require('../lib/queries');
+const { today, fmtDate } = require('../lib/helpers');
 
 const router = express.Router();
 router.use(requireLogin, requireScreen(SCREEN.DRIVER));
@@ -60,13 +61,20 @@ async function tripCounts(tripId) {
   );
 }
 
-// 9.1 งานวันนี้
+// 9.1 งานวันนี้ + งานที่จะถึงใน 7 วัน (ตารางการทำงานของตนเอง)
 router.get('/', async (req, res) => {
+  const uid = req.session.user.user_id;
   const trips = await db.query(
     `${TRIP_SELECT} WHERE tr.driver_id = ? AND tr.trip_date = CURDATE() ORDER BY tr.depart_time`,
-    [req.session.user.user_id],
+    [uid],
   );
-  res.page('driver/today', { title: 'งานวันนี้', trips });
+  const upcoming = await db.query(
+    `${TRIP_SELECT} WHERE tr.driver_id = ? AND tr.trip_date > CURDATE() AND tr.trip_date <= CURDATE() + INTERVAL 7 DAY
+        AND tr.status <> 'ยกเลิก'
+      ORDER BY tr.trip_date, tr.depart_time`,
+    [uid],
+  );
+  res.page('driver/today', { title: 'งานวันนี้', trips, upcoming });
 });
 
 // 9.2 รายละเอียดรอบ + ผู้โดยสารตามจุดจอด
@@ -80,7 +88,14 @@ router.get('/trips/:id', async (req, res, next) => {
 });
 
 // เริ่มการเดินทาง
-router.post('/trips/:id/start', async (req, res) => {
+router.post('/trips/:id/start', async (req, res, next) => {
+  const trip = await myTrip(req, res);
+  if (trip === null) return next();
+  if (!trip) return;
+  if (trip.trip_date !== today()) {
+    req.flash('error', `เริ่มการเดินทางได้เฉพาะรอบของวันนี้ — รอบนี้เดินรถวันที่ ${fmtDate(trip.trip_date)}`);
+    return res.redirect(`/driver/trips/${trip.trip_id}`);
+  }
   try {
     await db.proc.startTrip(req.params.id, req.session.user.user_id);
     req.flash('success', 'เริ่มการเดินทางแล้ว — สแกน QR ผู้โดยสารได้เลย');
