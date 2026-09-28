@@ -29,14 +29,23 @@
   });
 })();
 
-// ปุ่มเปิด/ปิด sidebar หลังบ้านบนจอเล็ก
+// ปุ่มเปิด/ปิด sidebar หลังบ้านบนจอเล็ก (ปิดได้ด้วยปุ่มกากบาท, แตะพื้นหลัง หรือกด Esc)
 (function () {
   const toggle = document.querySelector('.menu-toggle');
   if (!toggle) return;
   const root = document.querySelector('.admin');
-  toggle.addEventListener('click', () => {
-    const open = root.classList.toggle('menu-open');
+  const closeBtn = root.querySelector('.sidebar-close');
+  const setOpen = (open) => {
+    root.classList.toggle('menu-open', open);
     toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    document.body.style.overflow = open ? 'hidden' : '';
+    (open ? closeBtn : toggle).focus();
+  };
+  toggle.addEventListener('click', () => setOpen(!root.classList.contains('menu-open')));
+  closeBtn.addEventListener('click', () => setOpen(false));
+  root.querySelector('.sidebar-backdrop').addEventListener('click', () => setOpen(false));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && root.classList.contains('menu-open')) setOpen(false);
   });
 })();
 

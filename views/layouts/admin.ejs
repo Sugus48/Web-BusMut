@@ -3,8 +3,11 @@
 <head><%- include('../partials/head') %></head>
 <body>
 <div class="admin">
-  <aside class="sidebar" aria-label="เมนูหลังบ้าน">
-    <a class="brand" href="/admin"><%- include('../partials/icon', { name: 'bus' }) %> MUT Shuttle</a>
+  <aside class="sidebar" id="admin-sidebar" aria-label="เมนูหลังบ้าน">
+    <div class="sidebar-head">
+      <a class="brand" href="/admin"><%- include('../partials/icon', { name: 'bus' }) %> MUT Shuttle</a>
+      <button class="sidebar-close" type="button" aria-label="ปิดเมนู"><%- include('../partials/icon', { name: 'close' }) %></button>
+    </div>
     <a class="nav" href="/admin" <%- currentPath === '/admin' ? 'aria-current="page"' : '' %>>Dashboard</a>
     <% adminMenu.forEach((g) => {
          const items = g.items.filter((i) => hasScreen(i.screen));
@@ -15,14 +18,15 @@
       <% }) %>
     <% }) %>
   </aside>
+  <div class="sidebar-backdrop" aria-hidden="true"></div>
   <div class="admin-main">
     <header class="admin-top">
-      <button class="btn btn-sm menu-toggle" type="button" aria-expanded="false" aria-label="เปิดเมนู"><%- include('../partials/icon', { name: 'menu' }) %></button>
+      <button class="btn btn-sm menu-toggle" type="button" aria-expanded="false" aria-controls="admin-sidebar" aria-label="เปิดเมนู"><%- include('../partials/icon', { name: 'menu' }) %></button>
       <span class="who">เข้าสู่ระบบเป็น <b><%= user.name %></b></span>
       <span class="grow"></span>
       <a class="btn btn-sm btn-ghost" href="/">โหมดผู้โดยสาร</a>
       <% if (isDriver) { %><a class="btn btn-sm btn-ghost" href="/driver">งานคนขับ</a><% } %>
-      <form method="post" action="/logout"><button class="btn btn-sm" type="submit"><%- include('../partials/icon', { name: 'logout' }) %> ออกจากระบบ</button></form>
+      <form method="post" action="/logout"><button class="btn btn-sm" type="submit"><%- include('../partials/icon', { name: 'logout' }) %> <span class="btn-label">ออกจากระบบ</span></button></form>
     </header>
     <main class="admin-content" id="main">
       <%- include('../partials/flash') %>
