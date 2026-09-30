@@ -485,11 +485,11 @@ BEGIN
     END IF;
 
     SELECT COALESCE(MAX(CAST(SUBSTRING(booking_id, 2) AS UNSIGNED)), 0) + 1 INTO v_n FROM bookings;
-    SET p_booking_id = CONCAT('B', LPAD(v_n, 3, '0'));
+    SET p_booking_id = CONCAT('B', LPAD(v_n, GREATEST(3, CHAR_LENGTH(v_n)), '0'));  -- LPAD ตัดเลขที่ยาวเกิน จึงต้องขยายความยาว
     INSERT INTO bookings (booking_id, booked_at, user_id) VALUES (p_booking_id, NOW(), p_user);
 
     SELECT COALESCE(MAX(CAST(SUBSTRING(booking_item_id, 3) AS UNSIGNED)), 0) + 1 INTO v_n FROM booking_items;
-    SET p_item_id = CONCAT('BD', LPAD(v_n, 3, '0'));
+    SET p_item_id = CONCAT('BD', LPAD(v_n, GREATEST(3, CHAR_LENGTH(v_n)), '0'));
     SET p_qr = CONCAT('QR-', p_item_id, '-', UPPER(LEFT(REPLACE(UUID(), '-', ''), 8)));
 
     -- trigger trg_items_bi ตรวจลำดับจุดขึ้น–ลง และที่นั่งว่าง

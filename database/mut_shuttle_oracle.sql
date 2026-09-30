@@ -514,12 +514,12 @@ BEGIN
 
   SELECT NVL(MAX(TO_NUMBER(SUBSTR(booking_id, 2))), 0) + 1 INTO v_n
     FROM bookings WHERE REGEXP_LIKE(booking_id, '^B[0-9]+$');
-  p_booking_id := 'B' || LPAD(v_n, 3, '0');
+  p_booking_id := 'B' || LPAD(v_n, GREATEST(3, LENGTH(TO_CHAR(v_n))), '0');  -- LPAD ตัดเลขที่ยาวเกิน จึงต้องขยายความยาว
   INSERT INTO bookings (booking_id, booked_at, user_id) VALUES (p_booking_id, SYSDATE, p_user);
 
   SELECT NVL(MAX(TO_NUMBER(SUBSTR(booking_item_id, 3))), 0) + 1 INTO v_n
     FROM booking_items WHERE REGEXP_LIKE(booking_item_id, '^BD[0-9]+$');
-  p_item_id := 'BD' || LPAD(v_n, 3, '0');
+  p_item_id := 'BD' || LPAD(v_n, GREATEST(3, LENGTH(TO_CHAR(v_n))), '0');
   p_qr := 'QR-' || p_item_id || '-' || SUBSTR(RAWTOHEX(SYS_GUID()), 1, 8);
 
   -- trigger ตรวจลำดับจุดขึ้น–ลง และที่นั่งว่าง
