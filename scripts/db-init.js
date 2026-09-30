@@ -3,6 +3,7 @@
 //   Oracle: database/mut_shuttle_oracle.sql + database/demo_data_oracle.sql
 // ใช้:  npm run db:init              (schema + ข้อมูลตัวอย่าง)
 //       npm run db:init -- --no-demo  (เฉพาะ schema + seed ตามไฟล์ SQL)
+//       npm run db:init -- --sql      (+ บันทึกข้อมูลย้อนหลังเป็นไฟล์ database/history_<ปี>*.sql)
 // ข้อมูลตัวอย่างรวมข้อมูลย้อนหลังปีที่แล้ว + ปีนี้สำหรับรายงาน (scripts/seed-history.js)
 const fs = require('fs');
 const path = require('path');
@@ -120,8 +121,9 @@ async function seedHistory() {
   if (!withDemo) return;
   const seed = require('./seed-history');
   const year = new Date().getFullYear();
-  await seed(year - 1);
-  await seed(year);
+  const opts = { sql: process.argv.includes('--sql') };
+  await seed(year - 1, opts);
+  await seed(year, opts);
   await require('../src/db').end();
 }
 

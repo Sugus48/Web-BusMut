@@ -125,17 +125,16 @@ async function main(yearArg, { sql = false, resetFirst = false } = {}) {
   if (!(await db.one("SELECT department_id FROM departments WHERE department_id = 'D003'"))) {
     await run((d) => insertSql(d, 'departments', { department_id: 'D003', department_name: 'นักศึกษา' }));
   }
+  // เขียนลงไฟล์ทุกครั้งแบบ "เพิ่มถ้ายังไม่มี" — ไฟล์ SQL แต่ละปีรันเองได้ และรันต่อกันหลายปีไม่ซ้ำ
   const users = [];
   let userNo = await maxNum('users', 'user_id', 'U');
   for (let i = 0; i < STUDENTS.length; i += 1) {
     const username = `student${pad2(i + 1)}`;
     const found = await db.one('SELECT user_id FROM users WHERE username = ?', [username]);
-    if (found) { users.push(found.user_id); continue; }
-    userNo += 1;
-    const id = `U${String(userNo).padStart(3, '0')}`;
-    await run((d) => insertSql(d, 'users', {
-      user_id: id, name: STUDENTS[i], email: `${username}@mail.com`, username, password_hash: hash, department_id: 'D003',
-    }));
+    const id = found ? found.user_id : `U${String((userNo += 1)).padStart(3, '0')}`;
+    await run(() => `INSERT INTO users (user_id, name, email, username, password_hash, department_id)
+  SELECT ${[id, STUDENTS[i], `${username}@mail.com`, username, hash, 'D003'].map(q).join(', ')} FROM dual
+   WHERE NOT EXISTS (SELECT 1 FROM users WHERE user_id = ${q(id)} OR username = ${q(username)})`);
     users.push(id);
   }
   users.push(...(await db.query("SELECT user_id FROM users WHERE username = 'manee'")).map((u) => u.user_id));
@@ -183,16 +182,25 @@ async function main(yearArg, { sql = false, resetFirst = false } = {}) {
         for (const s of schedules) {
           if (!String(s.run_days).includes(String(day.getDay()))) continue;
           if (taken.has(`${date}|${s.schedule_id}`) || taken.has(`${date}|${s.route_id}|${s.depart_time}`)) continue;
-          const tripId = `TR${String(tripNo + 1).padStart(3, '0')}`;
-          try {
-            await run((d) => insertSql(d, 'trips', {
-              trip_id: tripId, trip_date: ['date', date], depart_time: s.depart_time, status: 'เสร็จสิ้น',
-              vehicle_id: s.vehicle_id, route_id: s.route_id, driver_id: s.driver_id, schedule_id: s.schedule_id,
-            }), conn);
-          } catch (err) {
-            if (err.sqlState !== '45000') throw err; // รถ/คนขับชนกับรอบที่มีอยู่ → ข้าม
-            continue;
+          let tripId;
+          let skip = false;
+          // รหัสซ้ำ (เว็บที่เปิดอยู่สร้างรอบล่วงหน้าไปแล้ว) → ขยับไปรหัสถัดไป
+          for (;;) {
+            tripId = `TR${String(tripNo + 1).padStart(3, '0')}`;
+            try {
+              await run((d) => insertSql(d, 'trips', {
+                trip_id: tripId, trip_date: ['date', date], depart_time: s.depart_time, status: 'เสร็จสิ้น',
+                vehicle_id: s.vehicle_id, route_id: s.route_id, driver_id: s.driver_id, schedule_id: s.schedule_id,
+              }), conn);
+              break;
+            } catch (err) {
+              if (err.errno === 1062) { tripNo += 1; continue; }
+              if (err.sqlState !== '45000') throw err; // รถ/คนขับชนกับรอบที่มีอยู่ → ข้าม
+              skip = true;
+              break;
+            }
           }
+          if (skip) continue;
           tripNo += 1;
           totals.trips += 1;
 
