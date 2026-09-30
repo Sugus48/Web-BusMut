@@ -24,27 +24,52 @@ const REPORTS = {
     title: 'เปรียบเทียบจำนวนคนขึ้น–ลงรถรายปี',
     filter: 'year',
     async run({ year }) {
-      const rows = await db.query(
-        `SELECT s.stop_id, s.stop_name,
-                COALESCE(SUM(CASE WHEN bi.board_stop_id  = s.stop_id THEN bi.seats END), 0) AS boarded,
-                COALESCE(SUM(CASE WHEN bi.alight_stop_id = s.stop_id THEN bi.seats END), 0) AS alighted
-           FROM stops s
-           LEFT JOIN (booking_items bi JOIN trips t ON t.trip_id = bi.trip_id)
-                  ON (bi.board_stop_id = s.stop_id OR bi.alight_stop_id = s.stop_id)
-                 AND bi.checkin_at IS NOT NULL AND YEAR(t.trip_date) = ?
-          GROUP BY s.stop_id, s.stop_name
-          ORDER BY s.stop_id`,
+      const stops = await db.query('SELECT stop_id, stop_name FROM stops ORDER BY stop_id');
+      // ขึ้นรถนับที่จุดขึ้น / ลงรถนับที่จุดลง แยกตามเดือนของวันที่เดินรถ
+      const count = (col) => db.query(
+        `SELECT MONTH(t.trip_date) AS month_no, bi.${col} AS stop_id, SUM(bi.seats) AS passengers
+           FROM booking_items bi JOIN trips t ON t.trip_id = bi.trip_id
+          WHERE bi.checkin_at IS NOT NULL AND YEAR(t.trip_date) = ?
+          GROUP BY MONTH(t.trip_date), bi.${col}`,
         [year],
       );
+      const [boardData, alightData] = await Promise.all([count('board_stop_id'), count('alight_stop_id')]);
+      const perMonth = (data, stopId) => MONTHS.map((_, i) =>
+        num(data.find((d) => Number(d.month_no) === i + 1 && d.stop_id === stopId) || {}, 'passengers'));
+
+      // ตาราง: จุดจอด × เดือน แยกส่วน ขึ้นรถ / ลงรถ พร้อมผลรวมแต่ละส่วน
+      const rows = [];
+      const section = (label, data) => {
+        const list = stops.map((s) => {
+          const r = { type: label, stop_name: s.stop_name };
+          perMonth(data, s.stop_id).forEach((v, i) => { r[`m${i + 1}`] = v; });
+          r.total = MONTHS.reduce((n, _, i) => n + r[`m${i + 1}`], 0);
+          return r;
+        });
+        const subtotal = { type: label, stop_name: `รวม${label}`, _subtotal: true };
+        MONTHS.forEach((_, i) => { subtotal[`m${i + 1}`] = sum(list, `m${i + 1}`); });
+        subtotal.total = sum(list, 'total');
+        rows.push(...list, subtotal);
+        return { list, subtotal };
+      };
+      const board = section('ขึ้นรถ', boardData);
+      const alight = section('ลงรถ', alightData);
+      const busiest = [...board.list].sort((a, b) => b.total - a.total)[0];
+
+      const chartOf = (label, list) => ({
+        title: `จำนวนผู้โดยสาร ${label === 'ขึ้นรถ' ? 'ขึ้น' : 'ลง'} รายเดือน ปี ${year + 543} (ทุกสถานี)`,
+        labels: MONTHS,
+        datasets: list.map((r) => ({ label: r.stop_name, data: MONTHS.map((_, i) => r[`m${i + 1}`]) })),
+      });
       return {
-        note: 'นับเฉพาะผู้โดยสารที่ Check-in แล้ว (หน่วย: คน/ที่นั่ง)',
-        cards: [['ขึ้นรถทั้งปี', sum(rows, 'boarded')], ['ลงรถทั้งปี', sum(rows, 'alighted')], ['จำนวนจุดจอด', rows.length]],
-        columns: [{ key: 'stop_id', label: 'รหัส' }, { key: 'stop_name', label: 'จุดจอด' },
-          { key: 'boarded', label: 'ขึ้นรถ', align: 'right' }, { key: 'alighted', label: 'ลงรถ', align: 'right' }],
+        note: 'นับเฉพาะผู้โดยสารที่ Check-in แล้ว (หน่วย: คน/ที่นั่ง) จัดกลุ่มตามเดือนของวันที่เดินรถ',
+        cards: [['ขึ้นรถทั้งปี', board.subtotal.total], ['ลงรถทั้งปี', alight.subtotal.total],
+          ['จุดขึ้นรถมากที่สุด', busiest && busiest.total ? busiest.stop_name : '-']],
+        columns: [{ key: 'type', label: 'ประเภท' }, { key: 'stop_name', label: 'จุดจอด' },
+          ...MONTHS.map((m, i) => ({ key: `m${i + 1}`, label: m, align: 'right' })),
+          { key: 'total', label: 'รวมทั้งปี', align: 'right' }],
         rows,
-        totals: { stop_name: 'รวม', boarded: sum(rows, 'boarded'), alighted: sum(rows, 'alighted') },
-        chart: { labels: rows.map((r) => r.stop_name),
-          datasets: [{ label: 'ขึ้นรถ', data: rows.map((r) => num(r, 'boarded')) }, { label: 'ลงรถ', data: rows.map((r) => num(r, 'alighted')) }] },
+        charts: [chartOf('ขึ้นรถ', board.list), chartOf('ลงรถ', alight.list)],
       };
     },
   },
@@ -263,10 +288,17 @@ const REPORTS = {
   },
 };
 
+// รับปีได้ทั้ง พ.ศ. (เช่น 2568) และ ค.ศ. (2025) — เก็บเป็น ค.ศ. สำหรับ query
+function toAD(v) {
+  const y = Number(v);
+  if (!Number.isInteger(y) || y <= 0) return 0;
+  return y > 2400 ? y - 543 : y;
+}
+
 function toCsv(result) {
   const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const lines = [result.columns.map((c) => esc(c.label)).join(',')];
-  for (const r of [...result.rows, result.totals]) lines.push(result.columns.map((c) => esc(r[c.key])).join(','));
+  for (const r of [...result.rows, ...(result.totals ? [result.totals] : [])]) lines.push(result.columns.map((c) => esc(r[c.key])).join(','));
   return `﻿${lines.join('\r\n')}`; // BOM ให้ Excel อ่านภาษาไทยได้
 }
 
@@ -275,7 +307,7 @@ router.get('/', async (req, res) => {
   const report = REPORTS[id];
   const range = monthRange();
   const params = {
-    year: Number(req.query.year) || Number(today().slice(0, 4)),
+    year: toAD(req.query.year) || Number(today().slice(0, 4)),
     from: /^\d{4}-\d{2}-\d{2}$/.test(req.query.from || '') ? req.query.from : range.from,
     to: /^\d{4}-\d{2}-\d{2}$/.test(req.query.to || '') ? req.query.to : range.to,
   };

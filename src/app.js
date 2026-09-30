@@ -1,5 +1,11 @@
-require('dotenv').config({ quiet: true });
 const path = require('path');
+const fs = require('fs');
+// อ่าน .env จากโฟลเดอร์โปรเจกต์เสมอ ไม่ขึ้นกับว่าสั่งรันจากโฟลเดอร์ไหน
+const ENV_FILE = path.join(__dirname, '..', '.env');
+require('dotenv').config({ path: ENV_FILE, quiet: true });
+if (!fs.existsSync(ENV_FILE)) {
+  console.warn(`ไม่พบไฟล์ ${ENV_FILE} — ใช้ค่าเริ่มต้น (MySQL ที่ 127.0.0.1) ให้คัดลอก .env.example เป็น .env แล้วแก้ค่า`);
+}
 const express = require('express');
 const session = require('express-session');
 const helpers = require('./lib/helpers');
@@ -78,6 +84,7 @@ function scheduleTrips() {
 const port = Number(process.env.PORT || 3000);
 app.listen(port, () => {
   console.log(`MUT Shuttle running at http://localhost:${port}`);
+  console.log(`ฐานข้อมูล: ${db.client} @ ${process.env.DB_HOST || '127.0.0.1'}`);
   scheduleTrips();
   setInterval(scheduleTrips, 60 * 60 * 1000).unref();
 });

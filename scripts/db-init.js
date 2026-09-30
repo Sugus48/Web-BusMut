@@ -3,9 +3,11 @@
 //   Oracle: database/mut_shuttle_oracle.sql + database/demo_data_oracle.sql
 // ใช้:  npm run db:init              (schema + ข้อมูลตัวอย่าง)
 //       npm run db:init -- --no-demo  (เฉพาะ schema + seed ตามไฟล์ SQL)
-require('dotenv').config({ quiet: true });
+// ข้อมูลตัวอย่างรวมข้อมูลย้อนหลังปีที่แล้ว + ปีนี้สำหรับรายงาน (scripts/seed-history.js)
 const fs = require('fs');
 const path = require('path');
+
+require('dotenv').config({ path: path.join(__dirname, '..', '.env'), quiet: true });
 
 const DIR = path.join(__dirname, '..', 'database');
 const CLIENT = (process.env.DB_CLIENT || 'mysql').toLowerCase();
@@ -113,7 +115,18 @@ async function initOracle() {
   await conn.close();
 }
 
+// ข้อมูลย้อนหลังใช้ชั้นฐานข้อมูลของแอป (รองรับทั้ง MySQL / Oracle)
+async function seedHistory() {
+  if (!withDemo) return;
+  const seed = require('./seed-history');
+  const year = new Date().getFullYear();
+  await seed(year - 1);
+  await seed(year);
+  await require('../src/db').end();
+}
+
 (CLIENT === 'oracle' ? initOracle() : initMysql())
+  .then(seedHistory)
   .then(() => console.log('เสร็จแล้ว — รัน npm start แล้วเปิด http://localhost:' + (process.env.PORT || 3000)))
   .catch((err) => {
     if (err.code === 'ECONNREFUSED') console.error('เชื่อมต่อฐานข้อมูลไม่ได้ — ตรวจสอบว่าเปิดฐานข้อมูลแล้ว และค่าใน .env ถูกต้อง');

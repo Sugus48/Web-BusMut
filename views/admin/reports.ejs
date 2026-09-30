@@ -16,8 +16,8 @@
   <input type="hidden" name="r" value="<%= id %>">
   <% if (report.filter === 'year') { %>
     <div class="field">
-      <label for="year">ปี (ค.ศ.)</label>
-      <input class="input" type="number" id="year" name="year" value="<%= params.year %>" min="2000" max="2100">
+      <label for="year">ปี (พ.ศ.)</label>
+      <input class="input" type="number" id="year" name="year" value="<%= params.year + 543 %>" min="2543" max="2643">
     </div>
   <% } else { %>
     <div class="field">
@@ -32,23 +32,26 @@
   <div class="btn-row"><button class="btn btn-primary" type="submit">แสดงรายงาน</button></div>
 </form>
 
-<p class="muted small"><%= result.note %> · <%= report.filter === 'year' ? `ปี ${params.year}` : `${fmtDate(params.from)} – ${fmtDate(params.to)}` %></p>
+<p class="muted small"><%= result.note %> · <%= report.filter === 'year' ? `ปี ${params.year + 543}` : `${fmtDate(params.from)} – ${fmtDate(params.to)}` %></p>
 
 <div class="kpis">
   <% result.cards.forEach(([label, value]) => { %>
-    <div class="kpi"><div class="k-label"><%= label %></div><div class="k-value"><%= Number(value).toLocaleString('th-TH') %></div></div>
+    <div class="kpi"><div class="k-label"><%= label %></div><div class="k-value"><%= typeof value === 'number' ? value.toLocaleString('th-TH') : value %></div></div>
   <% }) %>
 </div>
 
-<% const hasData = result.chart.datasets.some((d) => d.data.some((v) => v > 0)); %>
+<% const charts = result.charts || [{ ...result.chart, title: report.title }]; %>
+<% const hasData = charts.some((c) => c.datasets.some((d) => d.data.some((v) => v > 0))); %>
+<% charts.forEach((c, i) => { %>
 <div class="card mb-4">
-  <h2 class="card-title"><%= report.title %><% if (result.chart.caption) { %> <span class="muted small">— <%= result.chart.caption %></span><% } %></h2>
+  <h2 class="card-title"><%= c.title %><% if (c.caption) { %> <span class="muted small">— <%= c.caption %></span><% } %></h2>
   <% if (hasData) { %>
-    <div class="chart-box"><canvas id="chart" role="img" aria-label="กราฟ <%= report.title %> (ข้อมูลเดียวกับตารางด้านล่าง)"></canvas></div>
+    <div class="chart-box"><canvas id="chart-<%= i %>" role="img" aria-label="กราฟ <%= c.title %> (ข้อมูลเดียวกับตารางด้านล่าง)"></canvas></div>
   <% } else { %>
     <div class="empty"><strong>ไม่มีข้อมูลในช่วงที่เลือก</strong>ลองเปลี่ยนปีหรือช่วงวันที่</div>
   <% } %>
 </div>
+<% }) %>
 
 <div class="table-wrap">
   <table class="table">
@@ -64,7 +67,9 @@
         </tr>
       <% }) %>
     </tbody>
+    <% if (result.totals) { %>
     <tfoot><tr><% result.columns.forEach((c) => { %><td class="<%= c.align || '' %>"><%= result.totals[c.key] ?? '' %></td><% }) %></tr></tfoot>
+    <% } %>
   </table>
 </div>
 
@@ -73,13 +78,13 @@
 <script>
   (function () {
     if (typeof Chart === 'undefined') return;
-    const chart = <%- JSON.stringify(result.chart).replace(/</g, '\\u003c') %>;
+    const charts = <%- JSON.stringify(charts).replace(/</g, '\\u003c') %>;
     // ลำดับสี categorical คงที่ (ไม่วนสี) — validated default palette
     const SERIES = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'];
     const css = getComputedStyle(document.documentElement);
     Chart.defaults.font.family = css.getPropertyValue('--font');
     Chart.defaults.color = '#52514e';
-    new Chart(document.getElementById('chart'), {
+    charts.forEach((chart, n) => new Chart(document.getElementById(`chart-${n}`), {
       type: 'bar',
       data: {
         labels: chart.labels,
@@ -100,7 +105,7 @@
           y: { beginAtZero: true, grid: { color: '#eceae6' }, border: { display: false }, ticks: { precision: 0, color: '#898781' } },
         },
       },
-    });
+    }));
   })();
 </script>
 <% } %>

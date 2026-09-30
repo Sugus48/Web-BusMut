@@ -8,6 +8,7 @@
     "start": "node src/app.js",
     "dev": "node --watch src/app.js",
     "db:init": "node scripts/db-init.js",
+    "db:history": "node scripts/seed-history.js",
     "check": "node scripts/check-views.js"
   },
   "engines": {
