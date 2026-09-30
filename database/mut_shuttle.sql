@@ -597,7 +597,8 @@ DELIMITER ;
 
 INSERT INTO departments VALUES
   ('D001', 'ฝ่ายบุคคล'),
-  ('D002', 'ฝ่ายปฏิบัติการ');
+  ('D002', 'ฝ่ายปฏิบัติการ'),
+  ('D003', 'นักศึกษา');        -- ผู้ใช้บริการที่ Login มาจอง (ไม่ใช่พนักงาน)
 
 INSERT INTO positions VALUES
   ('P01', 'Admin'),

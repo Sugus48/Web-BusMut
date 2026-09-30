@@ -5,8 +5,6 @@
 --  ทุกบัญชี password = 1234
 -- =====================================================================
 
-INSERT INTO departments VALUES ('D003', 'นักศึกษา');
-
 -- มานี = นักศึกษา (ผู้ใช้บริการ ไม่ใช่พนักงาน)
 INSERT INTO users VALUES ('U005', 'มานี มีนา', 'manee@mail.com', 'manee', LOWER(RAWTOHEX(STANDARD_HASH('1234', 'SHA256'))), 'D003');
 

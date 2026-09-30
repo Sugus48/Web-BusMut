@@ -637,6 +637,7 @@ END;
 
 INSERT INTO departments VALUES ('D001', 'ฝ่ายบุคคล');
 INSERT INTO departments VALUES ('D002', 'ฝ่ายปฏิบัติการ');
+INSERT INTO departments VALUES ('D003', 'นักศึกษา');  -- ผู้ใช้บริการที่ Login มาจอง (ไม่ใช่พนักงาน)
 
 INSERT INTO positions VALUES ('P01', 'Admin');
 INSERT INTO positions VALUES ('P02', 'พนักงาน');
