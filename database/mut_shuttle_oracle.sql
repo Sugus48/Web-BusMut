@@ -24,7 +24,7 @@ BEGIN
   END LOOP;
   FOR o IN (SELECT object_name, object_type FROM user_objects
              WHERE object_type IN ('FUNCTION', 'PROCEDURE') AND object_name IN (
-               'MUT_TS', 'MUT_ROUTE_MINUTES', 'SP_SEARCH_TRIPS', 'SP_CREATE_BOOKING', 'SP_CANCEL_BOOKING_ITEM',
+               'MUT_TS', 'MUT_ROUTE_MINUTES', 'MUT_SEGMENT_REMAINING', 'SP_SEARCH_TRIPS', 'SP_CREATE_BOOKING', 'SP_CANCEL_BOOKING_ITEM',
                'SP_START_TRIP', 'SP_CHECKIN', 'SP_CLOSE_TRIP')) LOOP
     EXECUTE IMMEDIATE 'DROP ' || o.object_type || ' ' || o.object_name;
   END LOOP;
@@ -260,6 +260,48 @@ BEGIN
 END;
 /
 
+-- ที่นั่งว่างในช่วงจุดขึ้น → จุดลงของรอบ = ความจุ − จำนวนคนบนรถสูงสุดในช่วงนั้น
+-- ผู้โดยสารครองที่นั่งตั้งแต่จุดขึ้นถึงก่อนจุดลง — ลงแล้วที่นั่งว่างให้คนที่ขึ้นหลังจากนั้นจองต่อได้
+-- p_exclude = รายการจองที่ไม่นับ หรือ NULL
+CREATE OR REPLACE FUNCTION mut_segment_remaining(
+  p_trip IN VARCHAR2, p_board IN VARCHAR2, p_alight IN VARCHAR2, p_exclude IN VARCHAR2) RETURN NUMBER IS
+  v_route trips.route_id%TYPE;
+  v_seats NUMBER;
+  v_from  NUMBER;
+  v_to    NUMBER;
+  v_max   NUMBER;
+BEGIN
+  SELECT route_id, seat_count INTO v_route, v_seats FROM trips WHERE trip_id = p_trip;
+  SELECT MIN(stop_order) INTO v_from FROM route_stops WHERE route_id = v_route AND stop_id = p_board;
+  SELECT MIN(stop_order) INTO v_to FROM route_stops
+   WHERE route_id = v_route AND stop_id = p_alight AND stop_order > v_from;
+  IF v_from IS NULL OR v_to IS NULL THEN
+    RETURN 0;
+  END IF;
+
+  -- จำนวนคนบนรถในแต่ละช่วง (ลำดับ k → k+1) ที่อยู่ในช่วงที่จอง แล้วเอาช่วงที่แน่นที่สุด
+  SELECT NVL(MAX(occ), 0) INTO v_max
+    FROM (SELECT rs.stop_order, SUM(sg.seats) AS occ
+            FROM route_stops rs
+            JOIN (SELECT bi.seats,
+                         (SELECT MIN(a.stop_order) FROM route_stops a
+                           WHERE a.route_id = v_route AND a.stop_id = bi.board_stop_id) AS board_order,
+                         (SELECT MIN(b.stop_order) FROM route_stops b
+                           WHERE b.route_id = v_route AND b.stop_id = bi.alight_stop_id
+                             AND b.stop_order > (SELECT MIN(a2.stop_order) FROM route_stops a2
+                                                  WHERE a2.route_id = v_route AND a2.stop_id = bi.board_stop_id)) AS alight_order
+                    FROM booking_items bi
+                   WHERE bi.trip_id = p_trip AND bi.status <> 'ยกเลิก'
+                     AND (p_exclude IS NULL OR bi.booking_item_id <> p_exclude)) sg
+              ON sg.board_order <= rs.stop_order AND sg.alight_order > rs.stop_order
+           WHERE rs.route_id = v_route AND rs.stop_order >= v_from AND rs.stop_order < v_to
+           GROUP BY rs.stop_order);
+  RETURN v_seats - v_max;
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN RETURN 0;
+END;
+/
+
 
 -- =====================================================================
 -- 3) Triggers — บังคับกฎทางธุรกิจที่ระดับฐานข้อมูล
@@ -362,7 +404,7 @@ BEGIN
 END;
 /
 
--- รายการจอง: ที่นั่งต้องพอ (ตรวจหลังจบคำสั่งเพื่อเลี่ยง mutating table)
+-- รายการจอง: ที่นั่งต้องพอเฉพาะช่วงจุดขึ้น → จุดลงที่จอง (ตรวจหลังจบคำสั่งเพื่อเลี่ยง mutating table)
 CREATE OR REPLACE TRIGGER trg_items_seats
 FOR INSERT OR UPDATE ON booking_items
 COMPOUND TRIGGER
@@ -372,24 +414,25 @@ COMPOUND TRIGGER
   AFTER EACH ROW IS
   BEGIN
     IF :NEW.status <> 'ยกเลิก' AND (INSERTING OR :OLD.status = 'ยกเลิก'
-        OR :NEW.seats > :OLD.seats OR :NEW.trip_id <> :OLD.trip_id) THEN
+        OR :NEW.seats > :OLD.seats OR :NEW.trip_id <> :OLD.trip_id
+        OR :NEW.board_stop_id <> :OLD.board_stop_id OR :NEW.alight_stop_id <> :OLD.alight_stop_id) THEN
       g_ids.EXTEND;
-      g_ids(g_ids.COUNT) := :NEW.trip_id;
+      g_ids(g_ids.COUNT) := :NEW.booking_item_id;
     END IF;
   END AFTER EACH ROW;
 
   AFTER STATEMENT IS
     v_over NUMBER;
   BEGIN
+    -- แถวใหม่อยู่ในตารางแล้ว: ช่วงที่จองต้องไม่เกินความจุ (ที่นั่งว่างต้องไม่ติดลบ)
     FOR i IN 1 .. g_ids.COUNT LOOP
       SELECT COUNT(*) INTO v_over
-        FROM trips t
-       WHERE t.trip_id = g_ids(i)
-         AND t.seat_count < (SELECT NVL(SUM(bi.seats), 0) FROM booking_items bi
-                              WHERE bi.trip_id = t.trip_id AND bi.status <> 'ยกเลิก');
+        FROM booking_items bi
+       WHERE bi.booking_item_id = g_ids(i)
+         AND mut_segment_remaining(bi.trip_id, bi.board_stop_id, bi.alight_stop_id, NULL) < 0;
       IF v_over > 0 THEN
         g_ids.DELETE;
-        RAISE_APPLICATION_ERROR(-20001, 'ที่นั่งว่างไม่พอสำหรับรอบนี้');
+        RAISE_APPLICATION_ERROR(-20001, 'ที่นั่งว่างไม่พอในช่วงจุดขึ้น–จุดลงนี้');
       END IF;
     END LOOP;
     g_ids.DELETE;
@@ -403,6 +446,7 @@ END trg_items_seats;
 -- =====================================================================
 
 -- ค้นหารอบที่จองได้ (ซ่อนรอบที่รถจะถึงจุดขึ้นในอีกไม่ถึง 20 นาที)
+-- ที่นั่งคงเหลือ = ที่นั่งว่างเฉพาะช่วงจุดขึ้น → จุดลงที่ค้นหา
 CREATE OR REPLACE PROCEDURE sp_search_trips(
   p_date IN DATE, p_board IN VARCHAR2, p_alight IN VARCHAR2, p_rc OUT SYS_REFCURSOR) IS
 BEGIN
@@ -412,22 +456,18 @@ BEGIN
              SUM(rs.travel_minutes) OVER (PARTITION BY rs.route_id ORDER BY rs.stop_order
                                           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cum_minutes
         FROM route_stops rs
-    ), seats AS (
-      SELECT t.trip_id, t.seat_count,
-             t.seat_count - NVL(SUM(CASE WHEN bi.status <> 'ยกเลิก' THEN bi.seats END), 0) AS remaining_seats
-        FROM trips t LEFT JOIN booking_items bi ON bi.trip_id = t.trip_id
-       GROUP BY t.trip_id, t.seat_count
     )
     SELECT t.trip_id, t.trip_date, t.depart_time, r.route_name,
            vt.type_name || ' ' || v.plate_no AS vehicle,
            mut_ts(t.trip_date, t.depart_time) + b.cum_minutes / 1440 AS board_at,
            mut_ts(t.trip_date, t.depart_time) + a.cum_minutes / 1440 AS alight_at,
-           s.seat_count, s.remaining_seats, LEAST(4, s.remaining_seats) AS max_selectable
+           t.seat_count,
+           mut_segment_remaining(t.trip_id, p_board, p_alight, NULL)           AS remaining_seats,
+           LEAST(4, mut_segment_remaining(t.trip_id, p_board, p_alight, NULL)) AS max_selectable
       FROM trips t
       JOIN routes r         ON r.route_id = t.route_id
       JOIN vehicles v       ON v.vehicle_id = t.vehicle_id
       JOIN vehicle_types vt ON vt.vehicle_type_id = v.vehicle_type_id
-      JOIN seats s          ON s.trip_id = t.trip_id
       JOIN st b             ON b.route_id = t.route_id AND b.stop_id = p_board
       JOIN st a             ON a.route_id = t.route_id AND a.stop_id = p_alight
      WHERE t.trip_date = TRUNC(p_date)
@@ -689,6 +729,11 @@ INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driv
 INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, run_days, active) VALUES ('TS006', 'R002', '11:00:00', 'V003', 'U004', '12345', 1);
 INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, run_days, active) VALUES ('TS007', 'R002', '13:00:00', 'V003', 'U003', '12345', 1);
 INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, run_days, active) VALUES ('TS008', 'R002', '15:00:00', 'V003', 'U003', '12345', 1);
+-- เส้นทาง 3: เอกสารไม่ได้กำหนดเวลา — จัดจากรถ/คนขับที่ว่าง ไม่ชนรอบเส้นทาง 1–2
+INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, run_days, active) VALUES ('TS009', 'R003', '09:30:00', 'V002', 'U003', '12345', 1);
+INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, run_days, active) VALUES ('TS010', 'R003', '11:00:00', 'V002', 'U002', '12345', 1);
+INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, run_days, active) VALUES ('TS011', 'R003', '13:00:00', 'V001', 'U004', '12345', 1);
+INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driver_id, run_days, active) VALUES ('TS012', 'R003', '15:00:00', 'V001', 'U004', '12345', 1);
 
 COMMIT;
 

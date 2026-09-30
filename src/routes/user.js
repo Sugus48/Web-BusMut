@@ -61,12 +61,18 @@ async function bookingContext(tripId, board, alight) {
   if (!trip) return null;
   const stops = await getTripStops(trip.trip_id);
   const seg = segment(stops, board, alight);
+  // ที่นั่งคงเหลือเฉพาะช่วงจุดขึ้น → จุดลงที่เลือก (คนที่ลงก่อนจุดขึ้นไม่นับ)
+  if (seg.board && seg.alight) {
+    const row = await db.one('SELECT mut_segment_remaining(trip_id, ?, ?, NULL) AS n FROM trips WHERE trip_id = ?',
+      [seg.board.stop_id, seg.alight.stop_id, trip.trip_id]);
+    trip.remaining_seats = Number(row.n);
+  }
 
   let blocked = null;
   if (!seg.board || !seg.alight) blocked = 'เลือกจุดขึ้นและจุดลงจากหน้าค้นหาก่อนจอง';
   else if (trip.status !== 'เปิด') blocked = 'รอบนี้ไม่เปิดให้จอง';
   else if (!seg.board.bookable) blocked = 'ปิดรับจองแล้ว (ต้องจองก่อนรถถึงจุดขึ้นอย่างน้อย 20 นาที)';
-  else if (trip.remaining_seats <= 0) blocked = 'ที่นั่งเต็ม';
+  else if (trip.remaining_seats <= 0) blocked = 'ที่นั่งเต็มในช่วงจุดขึ้น–จุดลงนี้';
 
   return { trip, stops, seg, blocked, maxSeats: Math.max(0, Math.min(4, trip.remaining_seats)) };
 }

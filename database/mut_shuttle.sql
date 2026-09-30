@@ -262,6 +262,40 @@ LEFT JOIN v_trip_stop_times ta ON ta.trip_id = sg.trip_id AND ta.stop_order = sg
 -- =====================================================================
 DELIMITER $$
 
+-- ที่นั่งว่างในช่วงจุดขึ้น → จุดลงของรอบ = ความจุ − จำนวนคนบนรถสูงสุดในช่วงนั้น
+-- ผู้โดยสารครองที่นั่งตั้งแต่จุดขึ้นถึงก่อนจุดลง — ลงแล้วที่นั่งว่างให้คนที่ขึ้นหลังจากนั้นจองต่อได้
+-- p_exclude = รายการจองที่ไม่นับ (ใช้ตอนแก้ไขรายการเดิม) หรือ NULL
+CREATE FUNCTION mut_segment_remaining(p_trip VARCHAR(10), p_board VARCHAR(10), p_alight VARCHAR(10), p_exclude VARCHAR(10))
+RETURNS INT
+READS SQL DATA
+BEGIN
+  DECLARE v_route VARCHAR(10);
+  DECLARE v_seats INT;
+  DECLARE v_from INT;
+  DECLARE v_to INT;
+  DECLARE v_max INT DEFAULT 0;
+
+  SELECT route_id, seat_count INTO v_route, v_seats FROM trips WHERE trip_id = p_trip;
+  SELECT MIN(stop_order) INTO v_from FROM route_stops WHERE route_id = v_route AND stop_id = p_board;
+  SELECT MIN(stop_order) INTO v_to FROM route_stops
+   WHERE route_id = v_route AND stop_id = p_alight AND stop_order > v_from;
+  IF v_seats IS NULL OR v_from IS NULL OR v_to IS NULL THEN
+    RETURN 0;
+  END IF;
+
+  -- จำนวนคนบนรถในแต่ละช่วง (ลำดับ k → k+1) ที่อยู่ในช่วงที่จอง แล้วเอาช่วงที่แน่นที่สุด
+  SELECT COALESCE(MAX(x.occ), 0) INTO v_max
+  FROM (SELECT rs.stop_order, SUM(sg.seats) AS occ
+          FROM route_stops rs
+          JOIN v_booking_item_segments sg
+            ON sg.trip_id = p_trip AND sg.status <> 'ยกเลิก'
+           AND sg.board_order <= rs.stop_order AND sg.alight_order > rs.stop_order
+           AND (p_exclude IS NULL OR sg.booking_item_id <> p_exclude)
+         WHERE rs.route_id = v_route AND rs.stop_order >= v_from AND rs.stop_order < v_to
+         GROUP BY rs.stop_order) x;
+  RETURN v_seats - v_max;
+END$$
+
 -- รอบการเดินรถ: ดึงจำนวนที่นั่งจากประเภทรถ + ตรวจรถ/คนขับชนเวลา
 CREATE TRIGGER trg_trips_bi BEFORE INSERT ON trips
 FOR EACH ROW
@@ -351,12 +385,11 @@ BEGIN
   END IF;
 END$$
 
--- รายการจอง: จุดขึ้นต้องอยู่ก่อนจุดลงในเส้นทาง + ที่นั่งต้องพอ
+-- รายการจอง: จุดขึ้นต้องอยู่ก่อนจุดลงในเส้นทาง + ที่นั่งต้องพอในช่วงที่จอง
 CREATE TRIGGER trg_items_bi BEFORE INSERT ON booking_items
 FOR EACH ROW
 BEGIN
   DECLARE v_ok INT DEFAULT 0;
-  DECLARE v_remaining INT DEFAULT 0;
 
   SELECT COUNT(*) INTO v_ok
   FROM trips t
@@ -367,33 +400,21 @@ BEGIN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'จุดขึ้น/จุดลงไม่อยู่ในเส้นทางของรอบนี้ หรือจุดลงอยู่ก่อนจุดขึ้น';
   END IF;
 
-  IF NEW.status <> 'ยกเลิก' THEN
-    SELECT t.seat_count - COALESCE(SUM(CASE WHEN bi.status <> 'ยกเลิก' THEN bi.seats END), 0)
-      INTO v_remaining
-    FROM trips t LEFT JOIN booking_items bi ON bi.trip_id = t.trip_id
-    WHERE t.trip_id = NEW.trip_id
-    GROUP BY t.seat_count;
-    IF NEW.seats > v_remaining THEN
-      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'ที่นั่งว่างไม่พอสำหรับรอบนี้';
-    END IF;
+  -- ที่นั่งต้องพอเฉพาะช่วงจุดขึ้น → จุดลงที่จอง
+  IF NEW.status <> 'ยกเลิก'
+     AND NEW.seats > mut_segment_remaining(NEW.trip_id, NEW.board_stop_id, NEW.alight_stop_id, NULL) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'ที่นั่งว่างไม่พอในช่วงจุดขึ้น–จุดลงนี้';
   END IF;
 END$$
 
 CREATE TRIGGER trg_items_bu BEFORE UPDATE ON booking_items
 FOR EACH ROW
 BEGIN
-  DECLARE v_remaining INT DEFAULT 0;
   IF NEW.status <> 'ยกเลิก'
-     AND (OLD.status = 'ยกเลิก' OR NEW.seats > OLD.seats OR NEW.trip_id <> OLD.trip_id) THEN
-    SELECT t.seat_count - COALESCE(SUM(CASE WHEN bi.status <> 'ยกเลิก' AND bi.booking_item_id <> OLD.booking_item_id
-                                            THEN bi.seats END), 0)
-      INTO v_remaining
-    FROM trips t LEFT JOIN booking_items bi ON bi.trip_id = t.trip_id
-    WHERE t.trip_id = NEW.trip_id
-    GROUP BY t.seat_count;
-    IF NEW.seats > v_remaining THEN
-      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'ที่นั่งว่างไม่พอสำหรับรอบนี้';
-    END IF;
+     AND (OLD.status = 'ยกเลิก' OR NEW.seats > OLD.seats OR NEW.trip_id <> OLD.trip_id
+          OR NEW.board_stop_id <> OLD.board_stop_id OR NEW.alight_stop_id <> OLD.alight_stop_id)
+     AND NEW.seats > mut_segment_remaining(NEW.trip_id, NEW.board_stop_id, NEW.alight_stop_id, OLD.booking_item_id) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'ที่นั่งว่างไม่พอในช่วงจุดขึ้น–จุดลงนี้';
   END IF;
 END$$
 
@@ -403,18 +424,19 @@ END$$
 -- =====================================================================
 
 -- ค้นหารอบที่จองได้ (ซ่อนรอบที่รถจะถึงจุดขึ้นในอีกไม่ถึง 20 นาที)
+-- ที่นั่งคงเหลือ = ที่นั่งว่างเฉพาะช่วงจุดขึ้น → จุดลงที่ค้นหา
 CREATE PROCEDURE sp_search_trips(IN p_date DATE, IN p_board VARCHAR(10), IN p_alight VARCHAR(10))
 BEGIN
   SELECT t.trip_id, t.trip_date, t.depart_time, r.route_name,
          CONCAT(vt.type_name, ' ', v.plate_no) AS vehicle,
          tb.arrive_at AS board_at, ta.arrive_at AS alight_at,
-         s.seat_count, s.remaining_seats,
-         LEAST(4, s.remaining_seats) AS max_selectable
+         t.seat_count,
+         mut_segment_remaining(t.trip_id, p_board, p_alight, NULL)           AS remaining_seats,
+         LEAST(4, mut_segment_remaining(t.trip_id, p_board, p_alight, NULL)) AS max_selectable
   FROM trips t
   JOIN routes r         ON r.route_id = t.route_id
   JOIN vehicles v       ON v.vehicle_id = t.vehicle_id
   JOIN vehicle_types vt ON vt.vehicle_type_id = v.vehicle_type_id
-  JOIN v_trip_seats s   ON s.trip_id = t.trip_id
   JOIN v_trip_stop_times tb ON tb.trip_id = t.trip_id AND tb.stop_id = p_board
        AND tb.stop_order = (SELECT MIN(a.stop_order) FROM route_stops a
                              WHERE a.route_id = t.route_id AND a.stop_id = p_board)
@@ -678,7 +700,12 @@ INSERT INTO trip_schedules (schedule_id, route_id, depart_time, vehicle_id, driv
   ('TS005', 'R002', '09:30:00', 'V003', 'U004', '12345', 1),
   ('TS006', 'R002', '11:00:00', 'V003', 'U004', '12345', 1),
   ('TS007', 'R002', '13:00:00', 'V003', 'U003', '12345', 1),
-  ('TS008', 'R002', '15:00:00', 'V003', 'U003', '12345', 1);
+  ('TS008', 'R002', '15:00:00', 'V003', 'U003', '12345', 1),
+  -- เส้นทาง 3: เอกสารไม่ได้กำหนดเวลา — จัดจากรถ/คนขับที่ว่าง ไม่ชนรอบเส้นทาง 1–2
+  ('TS009', 'R003', '09:30:00', 'V002', 'U003', '12345', 1),
+  ('TS010', 'R003', '11:00:00', 'V002', 'U002', '12345', 1),
+  ('TS011', 'R003', '13:00:00', 'V001', 'U004', '12345', 1),
+  ('TS012', 'R003', '15:00:00', 'V001', 'U004', '12345', 1);
 
 
 -- =====================================================================

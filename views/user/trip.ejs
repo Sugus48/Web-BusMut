@@ -12,7 +12,7 @@
   <dl class="dl">
     <dt>รหัสรอบ</dt><dd class="mono"><%= trip.trip_id %></dd>
     <dt>รถ</dt><dd><%= trip.plate_no %> (<%= trip.type_name %>)</dd>
-    <dt>ที่นั่งคงเหลือ</dt><dd><%= trip.remaining_seats %> / <%= trip.seat_count %></dd>
+    <dt>ที่นั่งคงเหลือ</dt><dd><%= trip.remaining_seats %> / <%= trip.seat_count %><% if (seg.board && seg.alight) { %> <span class="muted small">(ช่วงที่เลือก)</span><% } %></dd>
     <dt>เวลารวมของเส้นทาง</dt><dd><%= trip.total_minutes %> นาที</dd>
     <% if (seg.board && seg.alight) { %>
       <dt>ช่วงที่เลือก</dt><dd><%= seg.board.stop_name %> <%= fmtTime(seg.board.arrive_at) %> → <%= seg.alight.stop_name %> <%= fmtTime(seg.alight.arrive_at) %></dd>
